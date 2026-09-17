@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -64,7 +64,7 @@ test('public CLI runs in the same process without credentials or system PATH', a
   const result = await run(t, files).done;
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout.toString()), {
-    pid: result.pid, args: [], cwd: files.runtime, hasKey: false, hasRegion: false, hasConfig: false,
+    pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false,
   });
   assert.equal(result.stderr, '');
 });
@@ -77,7 +77,7 @@ test('legacy Aholo environment is not forwarded and the public bridge port remai
   } }).done;
   assert.equal(result.code, 0, result.stderr);
   assert.deepEqual(JSON.parse(result.stdout.toString()), {
-    pid: result.pid, args: [], cwd: files.runtime, hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
+    pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
   });
   assert.doesNotMatch(result.stdout.toString() + result.stderr, /old-secret|invalid-old-region/);
 });
