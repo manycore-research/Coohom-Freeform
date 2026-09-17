@@ -57,7 +57,7 @@ async function acquireLock(directory, timeoutMs) {
   }
 }
 
-export async function prepareRuntime({ sourceRoot, cacheRoot, service, nodeExecutable = process.execPath, npmCliPath, lockTimeoutMs = 240_000 }) {
+export async function prepareRuntime({ sourceRoot, cacheRoot, service, nodeExecutable = process.execPath, npmCliPath, lockTimeoutMs = 360_000 }) {
   if (!Object.hasOwn(SERVICES, service)) throw new Error('Expected freeform or lux3d.');
   const manifest = await readJson(path.join(sourceRoot, '.codex-plugin/plugin.json'));
   if (manifest.name !== 'coohom-freeform' || !/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.+-]+)?$/.test(manifest.version)) {

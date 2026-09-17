@@ -11,7 +11,7 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-Restart Codex and open a new task. First startup can take several minutes while Node and both MCP dependencies are prepared. Later startups reuse the recorded local versions and do not run npm. Startup diagnostics go to the MCP server's stderr log; generation does not start during installation. Plugin registration alone does not mean both MCPs are ready; wait for both to load before use. Coohom sign-in, credits and browser requirements are the same as for ZIP installations.
+Restart Codex and open a new task. First startup can take several minutes while Node and both MCP dependencies are prepared. npm retries transient download failures up to twice, with a 300-second installation limit per MCP. Later startups reuse the recorded local versions and do not run npm. Startup diagnostics go to the MCP server's stderr log; generation does not start during installation. Plugin registration alone does not mean both MCPs are ready; wait for both to load before use. Coohom sign-in, credits and browser requirements are the same as for ZIP installations.
 
 ## Existing installation
 

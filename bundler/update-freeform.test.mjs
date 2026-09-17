@@ -62,7 +62,7 @@ async function fixture(t) {
     assert.equal(await realpath(root), root);
     await rm(root, { recursive: true, force: true });
   });
-  const pluginRoot = path.join(root, '插件 with spaces');
+  const pluginRoot = path.join(root, '鎻掍欢 with spaces');
   const runtime = path.join(pluginRoot, 'runtime', 'mcp');
   const nodeRoot = path.join(pluginRoot, 'runtime', 'node');
   const node = path.join(nodeRoot, process.platform === 'win32' ? 'node.exe' : 'bin/node');
@@ -115,7 +115,7 @@ test('installation resolves latest with bundled Node and records exact freeform 
   assert.equal(observation.path, '');
   assert.deepEqual(observation.forwardedLegacyNames, []);
   assert.deepEqual(observation.args.slice(0, 4), ['install', packageSpec, 'tsx@4.23.13', '--save-exact']);
-  for (const flag of ['--ignore-scripts', '--engine-strict', '--prefer-online', '--registry=https://registry.npmjs.org/']) {
+  for (const flag of ['--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--ignore-scripts', '--engine-strict', '--prefer-online', '--registry=https://registry.npmjs.org/']) {
     assert.ok(observation.args.includes(flag));
   }
   assert.ok(!observation.args.some(argument => argument.includes('qunhe')));

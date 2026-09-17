@@ -23,7 +23,7 @@ function runNpm(node, args, { cwd, env }) {
       const match = chunk.toString().match(/npm (?:error|ERR!) code ([A-Z][A-Z0-9_]+)/);
       if (match) errorCode = match[1];
     });
-    const timer = setTimeout(() => child.kill(), 180_000);
+    const timer = setTimeout(() => child.kill(), 300_000);
     child.once('error', (error) => { clearTimeout(timer); reject(new Error(`npm could not start (${error.code ?? 'unknown error'}).`)); });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
@@ -70,7 +70,7 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
     writeLine(`Installing ${policy.packageSpec}. Access to npm is required.`);
     await runNpm(node, [npmCli, 'install', policy.packageSpec, `tsx@${policy.tsxVersion}`,
       '--save-exact', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
-      '--engine-strict', '--prefer-online', '--fetch-retries=0', '--fetch-timeout=60000',
+      '--engine-strict', '--prefer-online', '--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000',
       `--registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
     const { freeform, tsx } = await validateFreeformRuntime(stage, { tsxVersion: policy.tsxVersion });
     const packageLock = JSON.parse(await fs.readFile(path.join(stage, 'package-lock.json'), 'utf8'));

@@ -23,7 +23,7 @@ function runNpm(node, args, { cwd, env }) {
       const match = chunk.toString().match(/npm (?:error|ERR!) code ([A-Z][A-Z0-9_]+)/);
       if (match) errorCode = match[1];
     });
-    const timer = setTimeout(() => child.kill(), 180_000);
+    const timer = setTimeout(() => child.kill(), 300_000);
     child.once('error', (error) => { clearTimeout(timer); reject(new Error(`npm could not start (${error.code ?? 'unknown error'}).`)); });
     child.once('close', (code, signal) => {
       clearTimeout(timer);
@@ -70,7 +70,7 @@ export async function installLux3d({ pluginRoot, nodeExecutable, npmCliPath, env
     writeLine(`Installing ${policy.packageSpec}. Access to public npm is required.`);
     await runNpm(node, [npmCli, 'install', policy.packageSpec, '--save-exact', '--omit=dev',
       '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict', '--prefer-online',
-      '--fetch-retries=0', '--fetch-timeout=60000', '--registry=https://registry.npmjs.org/',
+      '--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000', '--registry=https://registry.npmjs.org/',
       `--@manycore:registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
     const packageDirectory = path.join(stage, 'node_modules', '@manycore', 'coohom-lux3d-mcp');
     const manifest = JSON.parse(await fs.readFile(path.join(packageDirectory, 'package.json'), 'utf8'));
