@@ -10,7 +10,7 @@ Use this guide when the user asks to install Coohom Freeform. Reading or reviewi
 - Supported systems: Windows x64 and macOS ARM64 (Apple Silicon).
 - Requires Codex, Git, and network access to GitHub, nodejs.org and public npm. Node/npm are prepared automatically on first MCP startup.
 
-This is the 0.1.0 public source preview. Confirm that the catalog and plugin manifest exist on the default branch and match the source and selector above. If inaccessible, report the access failure; do not substitute another repository or guess a branch. Lux3D uses a temporary test environment and requires Coohom sign-in and service permissions. macOS runtime and full generation/import acceptance remain pending. See [release status](docs/releasing.md).
+This is the 0.1.0 public source preview. Confirm that the catalog and plugin manifest exist on the default branch and match the source and selector above. If inaccessible, report the access failure; do not substitute another repository or guess a branch. Lux3D defaults to the production Coohom executor at `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` and requires Coohom sign-in and service permissions. Use the full task URL returned by `prepare_workspace`; do not open this base URL as a task launch shortcut. macOS runtime and full generation/import acceptance remain pending. See [release status](docs/releasing.md).
 
 ## Install
 

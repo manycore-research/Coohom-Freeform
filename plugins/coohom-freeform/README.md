@@ -10,7 +10,7 @@ Lux3D works through your signed-in Coohom page. No Aholo API key is required. Th
 
 See [CHANGELOG.md](CHANGELOG.md) for the version and changes. The full version includes a `+codex.<UTC timestamp>` suffix to identify the installed build. The public source export excludes earlier internal test releases.
 
-The executor currently uses a temporary test environment. Production URL replacement and complete online acceptance remain pending. Installation resolves both MCPs from public npm `latest`; installation records and lockfiles preserve the actual versions used.
+The plugin defaults to the production executor at `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` through the public `LUX3D_MCP_EXECUTOR_URL` option. An explicit non-empty environment override is preserved. Complete online acceptance remains pending; changing the endpoint does not verify sign-in, generation or import. Installation resolves both MCPs from public npm `latest`; installation records and lockfiles preserve the actual versions used.
 
 ## Install or upgrade from a ZIP
 

@@ -6,7 +6,7 @@
 
 Create and continuously edit Coohom 3D scenes in Codex using images and natural language. Combine Lux3D image-to-3D generation with room modeling, furniture placement and material editing.
 
-**0.1.0 — public source preview.** Lux3D currently connects through a temporary Coohom test environment. Access depends on your account and service permissions; production availability is not guaranteed. macOS runtime and the complete sign-in, generation and import flow have not been accepted. See [release status](docs/releasing.md).
+**0.1.0 — public source preview.** Lux3D now defaults to the [production Coohom executor](https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor). Access still depends on your account and service permissions. macOS runtime and the complete sign-in, generation and import flow have not been accepted. See [release status](docs/releasing.md).
 
 ### Install
 
@@ -33,7 +33,7 @@ This first preview is distributed as source and a marketplace plugin. Platform Z
 
 在 Codex 中通过图片和自然语言创建、持续修改 Coohom 三维场景，结合 Lux3D 图片生模与自由造型，完成空间搭建、家具摆放和材质调整。
 
-**0.1.0：公开源码预览版。** Lux3D 当前依赖 Coohom 临时测试环境，访问取决于账号及服务权限，不保证生产可用性。macOS 实际运行以及完整登录、生模、导入流程尚未完成验收。详见[发布状态](docs/releasing.md)。
+**0.1.0：公开源码预览版。** Lux3D 已默认接入 [Coohom 线上执行页](https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor)，访问仍取决于账号及服务权限。macOS 实际运行以及完整登录、生模、导入流程尚未完成验收。详见[发布状态](docs/releasing.md)。
 
 ### 安装
 
@@ -60,7 +60,7 @@ codex plugin add coohom-freeform@coohom
 
 Codex で画像や自然言語を使い、Coohom の 3D シーンを作成・編集できます。Lux3D による画像からの 3D モデル生成、空間の作成、家具の配置、マテリアルの調整を組み合わせます。
 
-**0.1.0：公開ソースのプレビュー版。** 現在、Lux3D は Coohom の一時的なテスト環境を使用します。利用にはアカウントとサービスの権限が必要です。本番環境の可用性は保証されず、macOS の実動作とログイン・生成・インポートの全工程は検証待ちです。[リリース状況](docs/releasing.md)
+**0.1.0：公開ソースのプレビュー版。** Lux3D は [Coohom の本番実行ページ](https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor)を既定で使用します。利用にはアカウントとサービスの権限が必要です。macOS の実動作とログイン・生成・インポートの全工程は検証待ちです。[リリース状況](docs/releasing.md)
 
 ### インストール
 

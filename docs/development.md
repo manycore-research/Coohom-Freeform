@@ -32,6 +32,8 @@ On Windows x64, run `node bundler/marketplace-smoke.mjs <absolute-codex.exe> tmp
 
 npm retries transient download failures up to twice, with 1–5 second retry delays, a 60-second request timeout and a 300-second installation limit per MCP.
 
+The shared Lux3D launcher defaults `LUX3D_MCP_EXECUTOR_URL` to `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` before loading the public MCP entrypoint. Both platform ZIPs and the repository marketplace use this launcher. Non-empty explicit overrides are preserved.
+
 Policy files declare the package source; each successful installation records exact versions and npm lockfiles under its own runtime directory. Startup runs those installed files without downloading updates. Keep npm package names separate from the MCP server key `lux3d-mcp-server` and executable name, which remain stable.
 
 Do not place tokens, cookies, authorization headers, signed URLs or real user scenes in tests or reports. Use synthetic executor responses for automated tests; model generation spends account credits.

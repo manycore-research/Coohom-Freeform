@@ -36,6 +36,8 @@ async function main() {
   for (const name of Object.keys(process.env)) {
     if (['aholo_api_key', 'aholo_region', 'coohom_aholo_config'].includes(name.toLowerCase())) delete process.env[name];
   }
+  // Set the public MCP option before its entrypoint reads the environment.
+  process.env.LUX3D_MCP_EXECUTOR_URL ||= 'https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor';
   process.argv = [process.execPath, entry];
   process.chdir(runtimeDirectory);
   // Launch only the recorded local package; no npm, network or update at startup.

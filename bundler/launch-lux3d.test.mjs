@@ -10,7 +10,8 @@ const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const inspect = `process.stdout.write(JSON.stringify({
   pid: process.pid, args: process.argv.slice(2), cwd: process.cwd(),
   hasKey: Boolean(process.env.AHOLO_API_KEY), hasRegion: Boolean(process.env.AHOLO_REGION),
-  hasConfig: Boolean(process.env.COOHOM_AHOLO_CONFIG), port: process.env.LUX3D_MCP_BRIDGE_PORT
+  hasConfig: Boolean(process.env.COOHOM_AHOLO_CONFIG), port: process.env.LUX3D_MCP_BRIDGE_PORT,
+  executorUrl: process.env.LUX3D_MCP_EXECUTOR_URL
 }));`;
 
 async function fixture(t, { cli = inspect, version = '0.1.0-alpha.1', bin = 'src/index.js', realSdk } = {}) {
@@ -36,7 +37,7 @@ async function fixture(t, { cli = inspect, version = '0.1.0-alpha.1', bin = 'src
 function run(t, fixture, { args = [], env: overrides = {}, input = '' } = {}) {
   const env = { ...process.env };
   for (const name of Object.keys(env)) {
-    if (['path', 'node_options', 'node_path', 'aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'lux3d_mcp_bridge_port'].includes(name.toLowerCase())) delete env[name];
+    if (['path', 'node_options', 'node_path', 'aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'lux3d_mcp_bridge_port', 'lux3d_mcp_executor_url'].includes(name.toLowerCase())) delete env[name];
   }
   Object.assign(env, { PATH: '' }, overrides);
   const child = spawn(process.execPath, [fixture.launcher, ...args], {
@@ -67,6 +68,7 @@ test('public CLI runs in the same process without credentials or system PATH', a
   actual.cwd = await realpath(actual.cwd);
   assert.deepEqual(actual, {
     pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false,
+    executorUrl: 'https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor',
   });
   assert.equal(result.stderr, '');
 });
@@ -76,12 +78,14 @@ test('legacy Aholo environment is not forwarded and the public bridge port remai
   const result = await run(t, files, { env: {
     AHOLO_API_KEY: 'old-secret', AHOLO_REGION: 'invalid-old-region',
     COOHOM_AHOLO_CONFIG: join(files.root, 'does-not-exist.json'), LUX3D_MCP_BRIDGE_PORT: '18766',
+    LUX3D_MCP_EXECUTOR_URL: 'https://test.coohom.com/custom-executor',
   } }).done;
   assert.equal(result.code, 0, result.stderr);
   const actual = JSON.parse(result.stdout.toString());
   actual.cwd = await realpath(actual.cwd);
   assert.deepEqual(actual, {
     pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
+    executorUrl: 'https://test.coohom.com/custom-executor',
   });
   assert.doesNotMatch(result.stdout.toString() + result.stderr, /old-secret|invalid-old-region/);
 });

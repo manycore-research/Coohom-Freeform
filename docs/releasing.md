@@ -11,7 +11,7 @@ The public tag is `v0.1.0`. This preview does not publish platform ZIP assets.
 
 ## Service and validation limits
 
-- Lux3D currently uses `https://prod-test-seoul.coohom.com/pub/tool/bim/ai-home/mcp-executor` as its temporary executor base. The MCP returns the task-specific URL; users should not construct one manually. This is a test service with no production availability guarantee.
+- The plugin now defaults Lux3D to the production executor `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` through the public `LUX3D_MCP_EXECUTOR_URL` option. Explicit non-empty overrides remain supported. The MCP returns the full task-specific URL; users should not construct one manually. This endpoint update does not establish full online workflow acceptance.
 - Generation needs Coohom sign-in, service permissions and available credits. The hosted editor, generation service, accounts and billing are outside this source release.
 - Both MCPs resolve public npm `latest` on a fresh installation. Successful installations record exact versions and lockfiles; later starts reuse them. Dependency versions can differ between installations on different dates.
 - Windows source/marketplace and local automated checks are verified separately from browser workflows. macOS runtime, sign-in, generation, archiving, import and visual scene acceptance remain pending.
@@ -34,7 +34,7 @@ Apply accepted GitHub contributions to the development repository before exporti
 
 ## Before a production release
 
-- Have the MCP maintainer deploy the production executor and publish its default URL, then verify the public npm version's protocol.
+- Keep the production executor setting aligned with the public MCP configuration contract; revalidate the returned task URL after MCP updates.
 - Complete Windows and macOS installation, cold/warm MCP startup, sign-in, generation, import and continuous-editing acceptance for the exact candidate.
 - Complete third-party redistribution notices for the exact bundled runtime and resolved dependencies. Preserve project LICENSE files in every distribution.
 - Publish verified platform ZIPs and SHA256 files with explicit validation scope.
