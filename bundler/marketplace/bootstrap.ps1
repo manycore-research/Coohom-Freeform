@@ -45,8 +45,13 @@ try {
         if ((Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant() -cne $policy[2]) { throw 'Node archive SHA256 mismatch; downloaded files will not be executed.' }
         $tar = Join-Path ([Environment]::SystemDirectory) 'tar.exe'
         if (-not (Test-Path -LiteralPath $tar)) { throw 'Windows system tar.exe is required to unpack Node. Use a supported Windows installation with the system tar utility.' }
-        & $tar -xf $archive -C $stage | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw 'Node archive extraction failed.' }
+        # Native tar can lose Unicode in argv on non-UTF-8 Windows systems.
+        # The inherited working directory preserves it; archive names are ASCII.
+        Push-Location -LiteralPath $stage
+        try {
+            & $tar -xf $archiveName -C . | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Node archive extraction failed.' }
+        } finally { Pop-Location }
         $expanded = Join-Path $stage "node-v$nodeVersion-win-x64"
         if (-not (Test-Path -LiteralPath (Join-Path $expanded 'node.exe')) -or -not (Test-Path -LiteralPath (Join-Path $expanded 'node_modules\npm\bin\npm-cli.js'))) { throw 'Incomplete Node archive.' }
         [System.IO.File]::WriteAllText((Join-Path $expanded '.coohom-sha256'), $policy[2])

@@ -63,7 +63,9 @@ test('public CLI runs in the same process without credentials or system PATH', a
   const files = await fixture(t);
   const result = await run(t, files).done;
   assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout.toString()), {
+  const actual = JSON.parse(result.stdout.toString());
+  actual.cwd = await realpath(actual.cwd);
+  assert.deepEqual(actual, {
     pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false,
   });
   assert.equal(result.stderr, '');
@@ -76,7 +78,9 @@ test('legacy Aholo environment is not forwarded and the public bridge port remai
     COOHOM_AHOLO_CONFIG: join(files.root, 'does-not-exist.json'), LUX3D_MCP_BRIDGE_PORT: '18766',
   } }).done;
   assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout.toString()), {
+  const actual = JSON.parse(result.stdout.toString());
+  actual.cwd = await realpath(actual.cwd);
+  assert.deepEqual(actual, {
     pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
   });
   assert.doesNotMatch(result.stdout.toString() + result.stderr, /old-secret|invalid-old-region/);

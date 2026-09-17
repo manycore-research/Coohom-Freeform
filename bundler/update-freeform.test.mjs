@@ -60,7 +60,7 @@ async function fixture(t) {
     assert.equal(path.dirname(path.resolve(root)), temporaryParent);
     assert.ok(path.basename(root).startsWith(fixturePrefix));
     assert.equal(await realpath(root), root);
-    await rm(root, { recursive: true, force: true });
+    await rm(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   });
   const pluginRoot = path.join(root, '鎻掍欢 with spaces');
   const runtime = path.join(pluginRoot, 'runtime', 'mcp');
