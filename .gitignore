@@ -1,0 +1,50 @@
+# 依赖与本地运行环境（保留 package.json 和锁文件）
+node_modules/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+!.env.sample
+!.env.template
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# 平台构建产物与分发包
+/coohom-freeform-*.zip
+/bundler/downloads/
+/bundler/node-staging/
+/bundler/npm-cache/
+/bundler/staging/
+
+# 本地验证环境、生成的协议 schema 与诊断结果
+/bundler/smoke-install/
+/bundler/codex-schema/
+/bundler/codex-plugin-mcp-probe.json
+/bundler/missing-cache.json
+/bundler/smoke-mcp-result.json
+coverage/
+.nyc_output/
+*.log
+
+# 旧版插件的临时副本
+/legacy-page-update/
+
+# 系统和编辑器临时文件
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+/bundler/upgrade-smoke-*/
+/.playwright-mcp/
+/.confluence-mcp-temp/
+/lux3d-research
+/tmp
+
+# Generated distributions are published as release assets, not public Git source.
+/dist/

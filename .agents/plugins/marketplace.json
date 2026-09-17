@@ -1,0 +1,20 @@
+{
+  "name": "coohom",
+  "interface": {
+    "displayName": "Coohom"
+  },
+  "plugins": [
+    {
+      "name": "coohom-freeform",
+      "source": {
+        "source": "local",
+        "path": "./plugins/coohom-freeform"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

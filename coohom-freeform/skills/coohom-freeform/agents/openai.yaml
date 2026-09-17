@@ -1,0 +1,4 @@
+interface:
+  display_name: "Coohom Freeform"
+  short_description: "Create and refine 3D spaces with images and conversation"
+  default_prompt: "Use $coohom-freeform to create a space from my images and description, generate furniture with AI, and help me refine the scene."

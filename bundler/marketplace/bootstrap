@@ -1,0 +1,70 @@
+#!/bin/sh
+set -eu
+service=${1-}
+case "$service" in freeform|lux3d) ;; *) echo '[coohom-freeform] Expected freeform or lux3d.' >&2; exit 1 ;; esac
+scripts=$(CDPATH= cd "$(dirname "$0")" && pwd)
+case "$(uname -s)-$(uname -m)" in Darwin-arm64) platform=darwin-arm64 ;; *) echo '[coohom-freeform] This marketplace supports Windows x64 and macOS ARM64.' >&2; exit 1 ;; esac
+node_version= archive_name= checksum=
+while IFS="$(printf '\t')" read -r key value hash; do
+    case "$key" in version) node_version=$value ;; "$platform") archive_name=$value; checksum=$hash ;; esac
+done < "$scripts/node-runtime.tsv"
+case "$node_version" in ''|*[!0-9.]*) echo '[coohom-freeform] Invalid Node version.' >&2; exit 1 ;; esac
+case "$checksum" in ''|*[!a-f0-9]*) echo '[coohom-freeform] Invalid Node checksum.' >&2; exit 1 ;; esac
+[ "${#checksum}" -eq 64 ] && [ "$archive_name" = "node-v$node_version-darwin-arm64.tar.gz" ] || exit 1
+cache_base=${COOHOM_FREEFORM_CACHE:-"$HOME/Library/Caches/Coohom/Freeform/marketplace"}
+mkdir -p "$cache_base/node"
+node_parent=$(CDPATH= cd "$cache_base/node" && pwd)
+cache_base=$(dirname "$node_parent")
+node_root="$node_parent/node-v$node_version-darwin-arm64"
+node="$node_root/bin/node"
+npm_cli="$node_root/lib/node_modules/npm/bin/npm-cli.js"
+lock="$node_parent/darwin-arm64-$node_version.lock"
+stage= owns_lock=false
+cleanup() {
+    if [ -n "$stage" ]; then
+        case "$stage" in "$node_parent"/.download-*) rm -rf -- "$stage" ;; esac
+    fi
+    if [ "$owns_lock" = true ] && [ "$(cat "$lock/pid" 2>/dev/null || true)" = "$$" ]; then
+        rm -f -- "$lock/pid"
+        rmdir "$lock" 2>/dev/null || true
+    fi
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM HUP
+attempt=0
+while ! mkdir "$lock" 2>/dev/null; do
+    owner=$(cat "$lock/pid" 2>/dev/null || true)
+    case "$owner" in ''|*[!0-9]*) ;; *)
+        if ! kill -0 "$owner" 2>/dev/null; then
+            echo '[coohom-freeform] An interrupted Node preparation left a lock. Close Coohom tasks and follow the cache repair instructions.' >&2
+            exit 1
+        fi ;;
+    esac
+    attempt=$((attempt + 1))
+    [ "$attempt" -lt 240 ] || { echo '[coohom-freeform] Node preparation is locked. Retry after the other startup finishes; see cache repair instructions for interrupted preparation.' >&2; exit 1; }
+    sleep 1
+done
+owns_lock=true
+printf '%s' "$$" > "$lock/pid"
+if [ ! -d "$node_root" ]; then
+    echo "[coohom-freeform] Preparing Node $node_version; first startup requires internet access." >&2
+    stage=$(mktemp -d "$node_parent/.download-XXXXXXXX")
+    curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --connect-timeout 30 --max-time 180 \
+        "https://nodejs.org/dist/v$node_version/$archive_name" -o "$stage/$archive_name"
+    actual=$(shasum -a 256 "$stage/$archive_name")
+    [ "${actual%% *}" = "$checksum" ] || { echo '[coohom-freeform] Node archive SHA256 mismatch; downloaded files will not be executed.' >&2; exit 1; }
+    tar -xzf "$stage/$archive_name" -C "$stage"
+    expanded="$stage/node-v$node_version-darwin-arm64"
+    [ -x "$expanded/bin/node" ] && [ -f "$expanded/lib/node_modules/npm/bin/npm-cli.js" ] || exit 1
+    printf '%s' "$checksum" > "$expanded/.coohom-sha256"
+    mv "$expanded" "$node_root"
+fi
+[ -x "$node" ] && [ -f "$npm_cli" ] && [ "$(cat "$node_root/.coohom-sha256" 2>/dev/null || true)" = "$checksum" ] || {
+    echo '[coohom-freeform] The Node cache is incomplete. Close Coohom tasks and follow the cache repair instructions.' >&2; exit 1;
+}
+cleanup
+stage= owns_lock=false
+trap - EXIT INT TERM HUP
+unset NODE_OPTIONS NODE_PATH
+exec "$node" "$scripts/marketplace.mjs" "$service" "$cache_base" "$npm_cli"

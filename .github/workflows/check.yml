@@ -1,0 +1,24 @@
+name: Check source
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -B -m unittest discover -s scripts -p "test_*.py"
+      - run: python -B -m unittest discover -s bundler -p "test_*.py"
+      - run: node --test bundler/install.test.mjs bundler/launch-mcp.test.mjs bundler/launch-lux3d.test.mjs bundler/update-freeform.test.mjs bundler/update-lux3d.test.mjs bundler/marketplace.test.mjs
+      - run: python -B scripts/prepare_marketplace.py --check
+      - run: python -B scripts/check_release_text.py
+      - if: runner.os == 'macOS'
+        run: test -x plugins/coohom-freeform/scripts/bootstrap && sh -n plugins/coohom-freeform/scripts/bootstrap
+      - run: python scripts/export_public.py --output dist/coohom-freeform-source.zip

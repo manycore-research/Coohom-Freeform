@@ -1,0 +1,25 @@
+{
+  "name": "coohom-freeform",
+  "version": "0.1.0+codex.20260917092604",
+  "description": "Create, view and refine 3D scenes from images and natural language with Lux3D image-to-3D generation and Coohom Freeform.",
+  "author": {
+    "name": "Coohom Freeform"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Coohom Freeform",
+    "shortDescription": "Create and edit 3D scenes with images and conversation",
+    "longDescription": "Build spaces with Coohom Freeform and generate furniture from images with Lux3D. Sign in through Coohom; no Aholo API key is required. Watch the modeling process and refine furniture, layouts and materials through conversation. If furniture generation fails, use Freeform alternatives. Continue editing the final scene and choose when to save it.",
+    "developerName": "Coohom Freeform",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Create a Coohom Freeform scene from my images and description, and show me the modeling process.",
+      "Adjust the furniture, layout and materials in my current Coohom Freeform scene.",
+      "Open Coohom Freeform, check sign-in and MCP connections, and get ready to model."
+    ]
+  }
+}

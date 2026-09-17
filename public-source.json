@@ -1,0 +1,14 @@
+{
+  "include": [
+    "README.md", "INSTALL.md", "LICENSE", "CONTRIBUTING.md", "SECURITY.md", "THIRD_PARTY.md",
+    ".gitignore", ".gitattributes", ".github", ".agents/plugins/marketplace.json", "plugins", "docs", "public-source.json", "coohom-freeform", "scripts",
+    "bundler/marketplace", "bundler/marketplace.test.mjs", "bundler/marketplace-smoke.mjs",
+    "bundler/build.py", "bundler/test_build.py", "bundler/lock",
+    "bundler/install.mjs", "bundler/install.test.mjs",
+    "bundler/launch-mcp.mjs", "bundler/launch-mcp.test.mjs",
+    "bundler/launch-lux3d.mjs", "bundler/launch-lux3d.test.mjs",
+    "bundler/update-freeform.mjs", "bundler/update-freeform.test.mjs",
+    "bundler/update-lux3d.mjs", "bundler/update-lux3d.test.mjs",
+    "bundler/freeform-policy.json", "bundler/lux3d-policy.json"
+  ]
+}

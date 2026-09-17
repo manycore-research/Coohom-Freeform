@@ -1,0 +1,110 @@
+import { spawn } from 'node:child_process';
+import * as fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { validateFreeformRuntime } from './launch-mcp.mjs';
+
+const PACKAGE = 'freeform-modeling-mcp';
+const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+
+function inside(parent, candidate) {
+  const relative = path.relative(parent, candidate);
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+function runNpm(node, args, { cwd, env }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(node, args, { cwd, env, shell: false, windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'] });
+    let errorCode = '';
+    child.stdout.resume();
+    child.stderr.on('data', (chunk) => {
+      const match = chunk.toString().match(/npm (?:error|ERR!) code ([A-Z][A-Z0-9_]+)/);
+      if (match) errorCode = match[1];
+    });
+    const timer = setTimeout(() => child.kill(), 180_000);
+    child.once('error', (error) => { clearTimeout(timer); reject(new Error(`npm could not start (${error.code ?? 'unknown error'}).`)); });
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) resolve();
+      else reject(new Error(`Freeform MCP download failed (${errorCode || (signal ? 'timeout or process terminated' : `exit code ${code}`)}). Check npm access and the package Node.js compatibility. The previous installation was preserved.`));
+    });
+  });
+}
+
+export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log } = {}) {
+  const plugin = path.resolve(pluginRoot);
+  const runtime = path.join(plugin, 'runtime', 'mcp');
+  const policy = JSON.parse(await fs.readFile(path.join(runtime, 'freeform-policy.json'), 'utf8'));
+  if (policy.packageSpec !== `${PACKAGE}@latest` || !VERSION.test(policy.tsxVersion)
+    || policy.registry !== 'https://registry.npmjs.org/') {
+    throw new Error('Invalid Freeform MCP installation policy.');
+  }
+  const node = nodeExecutable ?? path.join(plugin, 'runtime', 'node', process.platform === 'win32' ? 'node.exe' : 'bin/node');
+  const npmCli = npmCliPath ?? path.join(plugin, 'runtime', 'node', 'npm', 'bin', 'npm-cli.js');
+  await fs.access(node);
+  await fs.access(npmCli);
+  let lock;
+  try { lock = await fs.open(path.join(runtime, '.freeform-update.lock'), 'wx'); }
+  catch (error) {
+    if (error.code === 'EEXIST') throw new Error('A Freeform MCP installation is running or an earlier installation was interrupted. Check installation processes and the lock file before updating.');
+    throw error;
+  }
+  let cache;
+  let stage;
+  let pointerTemporary;
+  let published = false;
+  try {
+    const versions = path.join(runtime, 'freeform');
+    await fs.mkdir(versions, { recursive: true });
+    stage = await fs.mkdtemp(path.join(versions, 'install-'));
+    cache = await fs.mkdtemp(path.join(os.tmpdir(), 'coohom-freeform-npm-'));
+    await fs.writeFile(path.join(stage, 'package.json'), JSON.stringify({
+      name: 'coohom-freeform-runtime', version: '1.0.0', private: true,
+    }, null, 2) + '\n');
+    const childEnv = { ...env };
+    for (const key of Object.keys(childEnv)) {
+      if (['aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'node_options', 'node_path'].includes(key.toLowerCase())) delete childEnv[key];
+    }
+    writeLine(`Installing ${policy.packageSpec}. Access to npm is required.`);
+    await runNpm(node, [npmCli, 'install', policy.packageSpec, `tsx@${policy.tsxVersion}`,
+      '--save-exact', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
+      '--engine-strict', '--prefer-online', '--fetch-retries=0', '--fetch-timeout=60000',
+      `--registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
+    const { freeform, tsx } = await validateFreeformRuntime(stage, { tsxVersion: policy.tsxVersion });
+    const packageLock = JSON.parse(await fs.readFile(path.join(stage, 'package-lock.json'), 'utf8'));
+    for (const [name, version] of [[PACKAGE, freeform.version], ['tsx', tsx.version]]) {
+      if (packageLock.packages?.[`node_modules/${name}`]?.version !== version
+        || packageLock.packages?.['']?.dependencies?.[name] !== version) {
+        throw new Error('The installed Freeform MCP version does not match the lockfile. The previous installation was preserved.');
+      }
+    }
+    const installation = { packageSpec: policy.packageSpec, version: freeform.version,
+      directory: path.relative(runtime, stage).split(path.sep).join('/'), tsxVersion: tsx.version,
+      installedAt: new Date().toISOString() };
+    pointerTemporary = path.join(runtime, `.freeform-install-${path.basename(stage)}.json`);
+    await fs.writeFile(pointerTemporary, JSON.stringify(installation, null, 2) + '\n');
+    await fs.rename(pointerTemporary, path.join(runtime, 'freeform-install.json'));
+    published = true;
+    writeLine(`Freeform MCP installed: ${installation.version}. Ordinary startup will use this local version.`);
+    return installation;
+  } finally {
+    // Only clean exact directories created by this invocation under known roots.
+    if (pointerTemporary) await fs.rm(pointerTemporary, { force: true });
+    if (!published && stage && inside(path.join(runtime, 'freeform'), stage)) await fs.rm(stage, { recursive: true, force: true });
+    if (cache && path.dirname(cache) === os.tmpdir()) await fs.rm(cache, { recursive: true, force: true });
+    await lock.close();
+    await fs.rm(path.join(runtime, '.freeform-update.lock'), { force: true });
+  }
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  if (process.argv.length !== 3) {
+    process.stderr.write('Usage: node update-freeform.mjs <plugin-root>\n');
+    process.exitCode = 1;
+  } else {
+    try { await installFreeform({ pluginRoot: process.argv[2] }); }
+    catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }
+  }
+}

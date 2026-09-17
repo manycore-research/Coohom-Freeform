@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "freeform-modeling-mcp": {
+      "command": "./scripts/bootstrap",
+      "args": [
+        "freeform"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "COOHOM_FREEFORM_CACHE"
+      ],
+      "startup_timeout_sec": 600
+    },
+    "lux3d-mcp-server": {
+      "command": "./scripts/bootstrap",
+      "args": [
+        "lux3d"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "COOHOM_FREEFORM_CACHE",
+        "LUX3D_MCP_BRIDGE_PORT",
+        "LUX3D_MCP_EXECUTOR_URL"
+      ],
+      "startup_timeout_sec": 600
+    }
+  }
+}
