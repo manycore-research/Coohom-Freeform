@@ -41,6 +41,16 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
     || policy.registry !== 'https://registry.npmjs.org/') {
     throw new Error('Invalid Freeform MCP installation policy.');
   }
+  const lockBytes = await fs.readFile(path.join(runtime, 'freeform-package-lock.json'));
+  const locked = JSON.parse(lockBytes);
+  const dependencies = { [PACKAGE]: FREEFORM_VERSION, tsx: policy.tsxVersion };
+  if (locked.lockfileVersion !== 3 || locked.name !== 'coohom-freeform-runtime'
+    || Object.keys(locked.packages?.['']?.dependencies ?? {}).length !== 2
+    || Object.entries(dependencies).some(([name, version]) =>
+      locked.packages?.['']?.dependencies?.[name] !== version
+      || locked.packages?.[`node_modules/${name}`]?.version !== version)) {
+    throw new Error('Freeform dependency lock does not match the installation policy.');
+  }
   const node = nodeExecutable ?? path.join(plugin, 'runtime', 'node', process.platform === 'win32' ? 'node.exe' : 'bin/node');
   const npmCli = npmCliPath ?? path.join(plugin, 'runtime', 'node', 'npm', 'bin', 'npm-cli.js');
   await fs.access(node);
@@ -61,15 +71,16 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
     stage = await fs.mkdtemp(path.join(versions, 'install-'));
     cache = await fs.mkdtemp(path.join(os.tmpdir(), 'coohom-freeform-npm-'));
     await fs.writeFile(path.join(stage, 'package.json'), JSON.stringify({
-      name: 'coohom-freeform-runtime', version: '1.0.0', private: true,
+      name: 'coohom-freeform-runtime', version: '1.0.0', private: true, dependencies,
     }, null, 2) + '\n');
+    await fs.writeFile(path.join(stage, 'package-lock.json'), lockBytes);
     const childEnv = { ...env };
     for (const key of Object.keys(childEnv)) {
       if (['aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'node_options', 'node_path'].includes(key.toLowerCase())) delete childEnv[key];
     }
     writeLine(`Installing ${policy.packageSpec}. Access to npm is required.`);
-    await runNpm(node, [npmCli, 'install', policy.packageSpec, `tsx@${policy.tsxVersion}`,
-      '--save-exact', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
+    await runNpm(node, [npmCli, 'ci',
+      '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
       '--engine-strict', '--prefer-online', '--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000',
       `--registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
     const { freeform, tsx } = await validateFreeformRuntime(stage, { version: FREEFORM_VERSION, tsxVersion: policy.tsxVersion });
@@ -79,6 +90,9 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
         || packageLock.packages?.['']?.dependencies?.[name] !== version) {
         throw new Error('The installed Freeform MCP version does not match the lockfile. The previous installation was preserved.');
       }
+    }
+    if (!(await fs.readFile(path.join(stage, 'package-lock.json'))).equals(lockBytes)) {
+      throw new Error('Freeform dependency lock changed during installation. The previous installation was preserved.');
     }
     const installation = { packageSpec: policy.packageSpec, version: freeform.version,
       directory: path.relative(runtime, stage).split(path.sep).join('/'), tsxVersion: tsx.version,

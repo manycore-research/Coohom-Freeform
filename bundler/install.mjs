@@ -279,7 +279,7 @@ async function verifyInstallation({ invoke, added, targetPlugin, version, mcpCon
   }
   const criticalFiles = ['.codex-plugin/plugin.json', '.mcp.json', LAUNCH_PATH, LUX3D_LAUNCH_PATH,
     'runtime/mcp/update-freeform.mjs', 'runtime/mcp/update-lux3d.mjs',
-    'runtime/mcp/freeform-policy.json', 'runtime/mcp/lux3d-policy.json',
+    'runtime/mcp/freeform-policy.json', 'runtime/mcp/freeform-package-lock.json', 'runtime/mcp/lux3d-policy.json',
     'runtime/mcp/freeform-install.json', 'runtime/mcp/lux3d-install.json'];
   for (const relative of criticalFiles) {
     if ((await hashFile(path.join(targetPlugin, relative))) !== (await hashFile(path.join(cache, relative)))) {
@@ -374,7 +374,7 @@ export async function installBundle({
   const nodeRelative = NODE_PATHS[platform];
   for (const relative of [nodeRelative, LAUNCH_PATH, LUX3D_LAUNCH_PATH,
     'runtime/node/npm/bin/npm-cli.js', 'runtime/mcp/update-lux3d.mjs', 'runtime/mcp/lux3d-policy.json',
-    'runtime/mcp/update-freeform.mjs', 'runtime/mcp/freeform-policy.json', 'skills/coohom-freeform/SKILL.md']) {
+    'runtime/mcp/update-freeform.mjs', 'runtime/mcp/freeform-policy.json', 'runtime/mcp/freeform-package-lock.json', 'skills/coohom-freeform/SKILL.md']) {
     if (!(await isFile(path.join(sourcePlugin, relative)))) throw new Error(`Required bundle file is missing: ${relative}`);
   }
   let installationBase = options.destination;

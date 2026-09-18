@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.0+codex.20260918013054 — 2026-09-18
+
+- Lock the complete Freeform 1.0.34 dependency tree and install with npm ci within the existing 300-second limit.
+
 ## 0.1.0+codex.20260918010126 — 2026-09-18
 
 0.1.0 source preview, updated for the production executor.

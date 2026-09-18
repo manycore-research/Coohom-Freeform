@@ -18,7 +18,9 @@ python bundler/build.py --targets win32-x64 darwin-arm64 --node <node-executable
 python scripts/release.py publish
 ```
 
-The build downloads official Node.js 22.23.2 archives and verifies their SHA256 checksums. The installation packages carry Node and npm. At installation time they download `freeform-modeling-mcp@1.0.34` and `@manycore/coohom-lux3d-mcp@latest` from public npm. The freeform launcher also installs the tsx version declared in `bundler/freeform-policy.json`.
+The build downloads official Node.js 22.23.2 archives and verifies their SHA256 checksums. The installation packages carry Node and npm. At installation time they download `freeform-modeling-mcp@1.0.34` and `@manycore/coohom-lux3d-mcp@latest` from public npm. Freeform uses `npm ci` with `bundler/freeform-package-lock.json`, including the tsx version declared in `bundler/freeform-policy.json`. The lock contains public npm URLs, integrity hashes and optional binaries for both supported platforms. Installation retains the 300-second timeout and two download retries.
+
+To update the Freeform dependency tree, use a clean temporary directory with a private `coohom-freeform-runtime` package at version `1.0.0` and exact dependencies matching the policy. Generate a fresh lock with the bundled npm using the public registry and `--ignore-scripts --no-audit --no-fund --engine-strict`, review all resolved URLs and platform entries, then replace `bundler/freeform-package-lock.json`. Regenerate the marketplace and rebuild both platform packages. Validate cold and warm startup before release; never edit only the generated plugin or silently resolve a new tree during user installation.
 
 The ZIP marketplace is included in each platform package. The repository marketplace uses the generated `plugins/coohom-freeform/` plugin and prepares its own runtime on first startup. Follow [marketplace development instructions](marketplace.md) after canonical plugin or bootstrap changes; CI rejects stale generated files.
 

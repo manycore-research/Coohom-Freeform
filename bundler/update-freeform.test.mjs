@@ -13,9 +13,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 const options = JSON.parse(process.env.COOHOM_TEST_NPM_OPTIONS);
 const args = process.argv.slice(2);
+const inputLock = fs.readFileSync('package-lock.json', 'utf8');
+const inputManifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const filteredNames = ['aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'node_options', 'node_path'];
 fs.appendFileSync(process.env.COOHOM_TEST_NPM_TRACE, JSON.stringify({
   args, cwd: process.cwd(), execPath: process.execPath, path: process.env.PATH || process.env.Path || '',
+  inputLock: JSON.parse(inputLock), inputManifest,
   forwardedLegacyNames: Object.keys(process.env).filter(name => filteredNames.includes(name.toLowerCase())),
 }) + '\n');
 if (options.mode === 'download-failure') {
@@ -24,8 +27,9 @@ if (options.mode === 'download-failure') {
   process.exit(1);
 }
 const versions = { 'freeform-modeling-mcp': options.version || '1.0.34', tsx: options.tsxVersion || '4.23.13' };
-const dependencies = {};
-const packages = { '': { dependencies } };
+const lock = JSON.parse(inputLock);
+const packages = lock.packages;
+const dependencies = packages[''].dependencies;
 for (const [name, version] of Object.entries(versions)) {
   const directory = path.join(process.cwd(), 'node_modules', name);
   fs.mkdirSync(path.join(directory, 'src'), { recursive: true });
@@ -49,7 +53,8 @@ for (const [name, version] of Object.entries(versions)) {
 if (options.mode === 'mismatched-freeform-lock') packages['node_modules/freeform-modeling-mcp'].version = '1.0.28';
 if (options.mode === 'mismatched-tsx-lock') packages['node_modules/tsx'].version = '4.23.12';
 if (options.mode === 'mismatched-root-lock') dependencies['freeform-modeling-mcp'] = '^1.0.34';
-fs.writeFileSync('package-lock.json', JSON.stringify({ lockfileVersion: 3, packages }));
+if (options.mode === 'changed-transitive-lock') packages['node_modules/frozen-dependency'].version = '9.0.0';
+fs.writeFileSync('package-lock.json', options.mode?.includes('lock') ? JSON.stringify(lock) : inputLock);
 fs.writeFileSync('package.json', JSON.stringify({ name: 'fixture', private: true, dependencies }));
 `;
 
@@ -74,6 +79,13 @@ async function fixture(t) {
   await writeFile(npmCli, fakeNpm);
   await writeFile(path.join(runtime, 'freeform-policy.json'), JSON.stringify({
     packageSpec, tsxVersion: '4.23.13', registry: 'https://registry.npmjs.org/',
+  }));
+  await writeFile(path.join(runtime, 'freeform-package-lock.json'), JSON.stringify({
+    name: 'coohom-freeform-runtime', version: '1.0.0', lockfileVersion: 3,
+    packages: { '': { dependencies: { [packageName]: '1.0.34', tsx: '4.23.13' } },
+      [`node_modules/${packageName}`]: { version: '1.0.34' },
+      'node_modules/tsx': { version: '4.23.13' },
+      'node_modules/frozen-dependency': { version: '1.2.3' } },
   }));
   const trace = path.join(root, 'npm-invocations.jsonl');
   const lines = [];
@@ -114,7 +126,11 @@ test('installation requests pinned Freeform with bundled Node and records exact 
   assert.equal(observation.cwd, path.join(files.runtime, installed.directory));
   assert.equal(observation.path, '');
   assert.deepEqual(observation.forwardedLegacyNames, []);
-  assert.deepEqual(observation.args.slice(0, 4), ['install', packageSpec, 'tsx@4.23.13', '--save-exact']);
+  assert.equal(observation.args[0], 'ci');
+  assert.deepEqual(observation.inputManifest.dependencies, { [packageName]: '1.0.34', tsx: '4.23.13' });
+  assert.equal(observation.inputLock.packages['node_modules/frozen-dependency'].version, '1.2.3');
+  assert.deepEqual(await readFile(path.join(files.runtime, installed.directory, 'package-lock.json')),
+    await readFile(path.join(files.runtime, 'freeform-package-lock.json')));
   for (const flag of ['--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--ignore-scripts', '--engine-strict', '--prefer-online', '--registry=https://registry.npmjs.org/']) {
     assert.ok(observation.args.includes(flag));
   }
@@ -134,7 +150,8 @@ test('reinstallation requests the same pinned version and retains the previous i
   assert.deepEqual(await readFile(oldManifest), oldBytes);
   const observations = await files.observations();
   assert.equal(observations.length, 2);
-  assert.ok(observations.every(item => item.args[1] === packageSpec));
+  assert.ok(observations.every(item => item.args[0] === 'ci'));
+  assert.deepEqual(observations[0].inputLock, observations[1].inputLock);
   await cleaned(files);
 });
 
@@ -147,9 +164,10 @@ for (const [options, expected] of [
   [{ mode: 'mismatched-freeform-lock' }, /version does not match the lockfile/],
   [{ mode: 'mismatched-tsx-lock' }, /version does not match the lockfile/],
   [{ mode: 'mismatched-root-lock' }, /version does not match the lockfile/],
+  [{ mode: 'changed-transitive-lock' }, /dependency lock changed/],
   [{ tsxVersion: '4.23.12' }, /version does not match the installation record/],
 ]) {
-  test(`${options.mode || 'incorrect tsx version'} retains the old pointer and cleans failed installation`, async (t) => {
+  test(`${options.mode || (options.version ? 'incorrect Freeform version' : 'incorrect tsx version')} retains the old pointer and cleans failed installation`, async (t) => {
     const files = await fixture(t);
     const previous = await files.install();
     await writeFile(files.pointer, `\n ${JSON.stringify(previous)}\n\n`);
@@ -176,4 +194,34 @@ test('existing update lock rejects a concurrent installation without removing an
   assert.equal(await readFile(lock, 'utf8'), 'owned-by-another-installer');
   assert.deepEqual(await readFile(files.pointer), oldPointer);
   assert.equal((await files.observations()).length, 1);
+});
+
+test('a mismatched shipped dependency lock is rejected before npm and preserves the previous installation', async (t) => {
+  const files = await fixture(t);
+  await files.install();
+  const previous = await readFile(files.pointer);
+  const filename = path.join(files.runtime, 'freeform-package-lock.json');
+  const lock = JSON.parse(await readFile(filename, 'utf8'));
+  lock.packages[''].dependencies[packageName] = '^1.0.34';
+  await writeFile(filename, JSON.stringify(lock));
+  await assert.rejects(files.install(), /dependency lock does not match/);
+  assert.deepEqual(await readFile(files.pointer), previous);
+  assert.equal((await files.observations()).length, 1);
+});
+
+test('the shipped lock uses public npm integrity records and includes both supported platform binaries', async () => {
+  const lock = JSON.parse(await readFile(new URL('./freeform-package-lock.json', import.meta.url), 'utf8'));
+  for (const [name, entry] of Object.entries(lock.packages)) {
+    if (!name) continue;
+    const resolved = new URL(entry.resolved);
+    assert.equal(resolved.origin, 'https://registry.npmjs.org');
+    assert.equal(resolved.username + resolved.password + resolved.search + resolved.hash, '');
+    assert.match(entry.integrity, /^sha512-[A-Za-z0-9+/]+=*$/);
+  }
+  for (const platform of ['win32-x64', 'darwin-arm64']) {
+    const binary = lock.packages[`node_modules/@esbuild/${platform}`];
+    assert.equal(binary.optional, true);
+    assert.deepEqual(binary.os, [platform.split('-')[0]]);
+    assert.deepEqual(binary.cpu, [platform.split('-')[1]]);
+  }
 });

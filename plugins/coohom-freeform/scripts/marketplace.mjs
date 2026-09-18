@@ -10,7 +10,7 @@ const SERVICES = {
   lux3d: { updater: 'update-lux3d.mjs', install: 'installLux3d', launcher: 'launch-lux3d.mjs', args: [] },
 };
 export const RUNTIME_FILES = ['launch-mcp.mjs', 'launch-lux3d.mjs', 'update-freeform.mjs',
-  'update-lux3d.mjs', 'freeform-policy.json', 'lux3d-policy.json'];
+  'update-lux3d.mjs', 'freeform-policy.json', 'freeform-package-lock.json', 'lux3d-policy.json'];
 const log = (message) => process.stderr.write(`[coohom-freeform] ${message}\n`);
 
 async function readJson(filename) {

@@ -20,7 +20,7 @@ SOURCE = HERE.parent / "coohom-freeform"
 NODE_VERSION = "22.23.2"
 MARKETPLACE = "coohom-freeform-local"
 MCP_RUNTIME_FILES = ("launch-mcp.mjs", "launch-lux3d.mjs",
-                     "update-freeform.mjs", "freeform-policy.json",
+                     "update-freeform.mjs", "freeform-policy.json", "freeform-package-lock.json",
                      "update-lux3d.mjs", "lux3d-policy.json")
 INSTALL_HELPERS = ("update-freeform.mjs", "update-lux3d.mjs", "launch-mcp.mjs")
 PLATFORMS = {
@@ -226,6 +226,7 @@ def build(target: str, node: str, npm_cli: str, scaffold: str, offline: bool = F
         "freeform-modeling-mcp and @manycore/coohom-lux3d-mcp are fetched when the user installs or updates the plugin, "
         "using runtime/mcp/freeform-policy.json and runtime/mcp/lux3d-policy.json. They are not preinstalled in this archive. "
         "runtime/mcp/freeform-install.json and runtime/mcp/lux3d-install.json record the resulting versions and installation directories. "
+        "Freeform uses npm ci with the shipped runtime/mcp/freeform-package-lock.json, fixing its complete dependency tree. "
         "Each MCP's independent package-lock.json records exact dependency versions and npm integrity hashes; "
         "tsx and its dependencies are recorded in the freeform installation's lockfile. "
         "Original downloaded package metadata and license files are preserved.\n\n"

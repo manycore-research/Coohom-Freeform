@@ -173,6 +173,7 @@ async function fixture(t, overrides = {}) {
     [path.join(sourcePlugin, 'runtime/node/npm/bin/npm-cli.js'), '// fixture npm'],
     [path.join(sourcePlugin, 'runtime/mcp/update-lux3d.mjs'), '// fixture lux3d updater'],
     [path.join(sourcePlugin, 'runtime/mcp/update-freeform.mjs'), '// fixture freeform updater'],
+    [path.join(sourcePlugin, 'runtime/mcp/freeform-package-lock.json'), '{"fixture":true}'],
     [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34' })],
     [path.join(sourcePlugin, 'runtime/mcp/lux3d-policy.json'), JSON.stringify({ packageSpec: '@manycore/coohom-lux3d-mcp@latest' })],
     [path.join(sourcePlugin, 'skills/coohom-freeform/SKILL.md'), '# fixture skill'],

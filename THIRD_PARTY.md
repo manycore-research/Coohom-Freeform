@@ -13,3 +13,5 @@ This project is licensed under the [MIT License](LICENSE), copyright (c) 2026 Co
 | Codex plugin-creator scripts | Official Codex skill installation | Build-time scaffold/cachebuster dependency; not copied into this repository |
 
 The install records and lockfiles identify the exact resolved MCP versions. License and redistribution review must cover that resolved dependency graph, including the dependencies shipped inside Node/npm. Do not replace third-party notices with a blanket project license.
+
+Freeform 1.0.34 and its complete transitive dependency tree are installed using `npm ci` from `bundler/freeform-package-lock.json`. This file records exact versions, public npm sources and integrity hashes, including platform-specific optional dependencies. Lux3D continues to resolve its own latest dependency tree. Dependencies retain their individual licenses; the lockfile is not a substitute for license review.

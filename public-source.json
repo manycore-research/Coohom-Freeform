@@ -9,6 +9,6 @@
     "bundler/launch-lux3d.mjs", "bundler/launch-lux3d.test.mjs",
     "bundler/update-freeform.mjs", "bundler/update-freeform.test.mjs",
     "bundler/update-lux3d.mjs", "bundler/update-lux3d.test.mjs",
-    "bundler/freeform-policy.json", "bundler/lux3d-policy.json"
+    "bundler/freeform-policy.json", "bundler/freeform-package-lock.json", "bundler/lux3d-policy.json"
   ]
 }
