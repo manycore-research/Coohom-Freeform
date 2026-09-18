@@ -18,7 +18,7 @@ python bundler/build.py --targets win32-x64 darwin-arm64 --node <node-executable
 python scripts/release.py publish
 ```
 
-The build downloads official Node.js 22.23.2 archives and verifies their SHA256 checksums. The installation packages carry Node and npm. At installation time they download `freeform-modeling-mcp@latest` and `@manycore/coohom-lux3d-mcp@latest` from public npm. The freeform launcher also installs the tsx version declared in `bundler/freeform-policy.json`.
+The build downloads official Node.js 22.23.2 archives and verifies their SHA256 checksums. The installation packages carry Node and npm. At installation time they download `freeform-modeling-mcp@1.0.34` and `@manycore/coohom-lux3d-mcp@latest` from public npm. The freeform launcher also installs the tsx version declared in `bundler/freeform-policy.json`.
 
 The ZIP marketplace is included in each platform package. The repository marketplace uses the generated `plugins/coohom-freeform/` plugin and prepares its own runtime on first startup. Follow [marketplace development instructions](marketplace.md) after canonical plugin or bootstrap changes; CI rejects stale generated files.
 

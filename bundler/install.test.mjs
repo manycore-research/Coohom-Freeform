@@ -173,7 +173,7 @@ async function fixture(t, overrides = {}) {
     [path.join(sourcePlugin, 'runtime/node/npm/bin/npm-cli.js'), '// fixture npm'],
     [path.join(sourcePlugin, 'runtime/mcp/update-lux3d.mjs'), '// fixture lux3d updater'],
     [path.join(sourcePlugin, 'runtime/mcp/update-freeform.mjs'), '// fixture freeform updater'],
-    [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@latest' })],
+    [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34' })],
     [path.join(sourcePlugin, 'runtime/mcp/lux3d-policy.json'), JSON.stringify({ packageSpec: '@manycore/coohom-lux3d-mcp@latest' })],
     [path.join(sourcePlugin, 'skills/coohom-freeform/SKILL.md'), '# fixture skill'],
   ]);
@@ -200,7 +200,7 @@ async function fixture(t, overrides = {}) {
     confirmUpgrade: async request => { confirmations.push(request); await event('confirm upgrade'); return true; },
   };
   for (const [name, method, resolvedVersion, packageSpec] of [
-    ['freeform', 'updateFreeform', '1.0.29', 'freeform-modeling-mcp@latest'],
+    ['freeform', 'updateFreeform', '1.0.34', 'freeform-modeling-mcp@1.0.34'],
     ['lux3d', 'updateLux3d', '0.1.0-alpha.2', '@manycore/coohom-lux3d-mcp@latest'],
   ]) {
     options[method] = async request => {
@@ -288,7 +288,7 @@ test('fresh installation uses versioned absolute paths with Chinese characters a
   const f = await fixture(t);
   const result = await installBundle(f.options);
   assert.equal(result.lux3dVersion, '0.1.0-alpha.2');
-  assert.equal(result.freeformVersion, '1.0.29');
+  assert.equal(result.freeformVersion, '1.0.34');
   assert.equal(result.installationBase, f.destination);
   assert.ok(path.relative(f.destination, result.destination) && !path.relative(f.destination, result.destination).startsWith('..'));
   const targetPlugin = result.targetPlugin ?? path.join(result.destination, 'marketplace/plugins/coohom-freeform');

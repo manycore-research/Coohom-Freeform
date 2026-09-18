@@ -6,7 +6,7 @@ This project is licensed under the [MIT License](LICENSE), copyright (c) 2026 Co
 | --- | --- | --- |
 | Node.js 22.23.2 | Official nodejs.org archives with SHA256 verification | Bundled; original LICENSE retained under runtime/node |
 | npm | Included in the selected Node.js archive | Bundled with its package metadata and license files |
-| freeform-modeling-mcp | Public npm, latest channel | Downloaded by installer; original package metadata and notices retained |
+| freeform-modeling-mcp | Public npm, temporarily pinned to 1.0.34 | Downloaded by installer; original package metadata and notices retained |
 | tsx | Version in bundler/freeform-policy.json | Downloaded with freeform; transitive dependencies recorded in installed lockfile |
 | @manycore/coohom-lux3d-mcp | Public npm, latest channel; independent source repository | Downloaded by installer; not vendored into plugin source |
 | Python | Python 3.11+ standard library | Build/maintenance tool; not bundled |

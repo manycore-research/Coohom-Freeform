@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const runtimeDirectory = path.dirname(fileURLToPath(import.meta.url));
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+export const FREEFORM_VERSION = '1.0.34';
 
 function inside(parent, candidate) {
   const relative = path.relative(parent, candidate);
@@ -65,8 +66,8 @@ async function main() {
   let installation;
   try { installation = JSON.parse(await readFile(path.join(runtimeDirectory, 'freeform-install.json'), 'utf8')); }
   catch { throw new Error('Freeform is not installed; run the plugin installer or updater first.'); }
-  if (installation.packageSpec !== 'freeform-modeling-mcp@latest'
-    || !VERSION.test(installation.version) || !VERSION.test(installation.tsxVersion)
+  if (installation.packageSpec !== `freeform-modeling-mcp@${FREEFORM_VERSION}`
+    || installation.version !== FREEFORM_VERSION || !VERSION.test(installation.tsxVersion)
     || typeof installation.directory !== 'string' || !/^freeform\/install-[A-Za-z0-9]+$/.test(installation.directory)) {
     throw new Error('Freeform installation record is invalid; run the plugin installer or updater again.');
   }

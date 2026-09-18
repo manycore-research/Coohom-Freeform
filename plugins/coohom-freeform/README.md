@@ -10,7 +10,7 @@ Lux3D works through your signed-in Coohom page. No Aholo API key is required. Th
 
 See [CHANGELOG.md](CHANGELOG.md) for the version and changes. The full version includes a `+codex.<UTC timestamp>` suffix to identify the installed build. The public source export excludes earlier internal test releases.
 
-The plugin defaults to the production executor at `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` through the public `LUX3D_MCP_EXECUTOR_URL` option. An explicit non-empty environment override is preserved. Complete online acceptance remains pending; changing the endpoint does not verify sign-in, generation or import. Installation resolves both MCPs from public npm `latest`; installation records and lockfiles preserve the actual versions used.
+The plugin defaults to the production executor at `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` through the public `LUX3D_MCP_EXECUTOR_URL` option. An explicit non-empty environment override is preserved. Complete online acceptance remains pending; changing the endpoint does not verify sign-in, generation or import. Freeform is temporarily pinned to public npm `freeform-modeling-mcp@1.0.34`; Lux3D continues to resolve `@manycore/coohom-lux3d-mcp@latest`. Installation records and lockfiles preserve the actual versions used.
 
 ## Install or upgrade from a ZIP
 
@@ -24,7 +24,7 @@ You do not need to uninstall manually first. The same entry supports first insta
 
 If standalone Freeform or Lux3D MCP services conflict, the installer lists them and pauses. Find the listed service under **MCP servers** in Codex settings. If no other task needs it, disable it and run the installer again. If it is shared and still needed, cancel and coordinate with its configuration owner. Do not delete the entire Codex configuration file.
 
-ZIP packages include Node **22.23.2** and npm; no system Node/npm installation is required. Each installer run downloads the current `freeform-modeling-mcp@latest` and `@manycore/coohom-lux3d-mcp@latest`. Ordinary startup uses installed local dependencies without checking for updates. The ZIP installation gives Lux3D 120 seconds to initialize.
+ZIP packages include Node **22.23.2** and npm; no system Node/npm installation is required. Each installer run downloads `freeform-modeling-mcp@1.0.34` and `@manycore/coohom-lux3d-mcp@latest`. Ordinary startup uses installed local dependencies without checking for updates. The ZIP installation gives Lux3D 120 seconds to initialize.
 
 The policies are in `runtime/mcp/freeform-policy.json` and `runtime/mcp/lux3d-policy.json`. The corresponding `freeform-install.json` and `lux3d-install.json` record actual versions. Each installation directory has a `package-lock.json` with exact dependencies. Reloading skills or running `plugin add` alone does not replace the ZIP installer's dependency-update step.
 

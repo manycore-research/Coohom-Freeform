@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateFreeformRuntime } from './launch-mcp.mjs';
+import { FREEFORM_VERSION, validateFreeformRuntime } from './launch-mcp.mjs';
 
 const PACKAGE = 'freeform-modeling-mcp';
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -37,7 +37,7 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
   const plugin = path.resolve(pluginRoot);
   const runtime = path.join(plugin, 'runtime', 'mcp');
   const policy = JSON.parse(await fs.readFile(path.join(runtime, 'freeform-policy.json'), 'utf8'));
-  if (policy.packageSpec !== `${PACKAGE}@latest` || !VERSION.test(policy.tsxVersion)
+  if (policy.packageSpec !== `${PACKAGE}@${FREEFORM_VERSION}` || !VERSION.test(policy.tsxVersion)
     || policy.registry !== 'https://registry.npmjs.org/') {
     throw new Error('Invalid Freeform MCP installation policy.');
   }
@@ -72,7 +72,7 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
       '--save-exact', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
       '--engine-strict', '--prefer-online', '--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000',
       `--registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
-    const { freeform, tsx } = await validateFreeformRuntime(stage, { tsxVersion: policy.tsxVersion });
+    const { freeform, tsx } = await validateFreeformRuntime(stage, { version: FREEFORM_VERSION, tsxVersion: policy.tsxVersion });
     const packageLock = JSON.parse(await fs.readFile(path.join(stage, 'package-lock.json'), 'utf8'));
     for (const [name, version] of [[PACKAGE, freeform.version], ['tsx', tsx.version]]) {
       if (packageLock.packages?.[`node_modules/${name}`]?.version !== version

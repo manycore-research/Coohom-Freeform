@@ -6,7 +6,7 @@ import test from 'node:test';
 import { installFreeform } from './update-freeform.mjs';
 
 const packageName = 'freeform-modeling-mcp';
-const packageSpec = `${packageName}@latest`;
+const packageSpec = `${packageName}@1.0.34`;
 const fixturePrefix = 'coohom-freeform-update-test-';
 const fakeNpm = String.raw`
 const fs = require('node:fs');
@@ -23,7 +23,7 @@ if (options.mode === 'download-failure') {
   process.stderr.write('npm error code E503\nprivate-registry-url-and-token\n');
   process.exit(1);
 }
-const versions = { 'freeform-modeling-mcp': options.version || '1.0.29', tsx: options.tsxVersion || '4.23.13' };
+const versions = { 'freeform-modeling-mcp': options.version || '1.0.34', tsx: options.tsxVersion || '4.23.13' };
 const dependencies = {};
 const packages = { '': { dependencies } };
 for (const [name, version] of Object.entries(versions)) {
@@ -48,7 +48,7 @@ for (const [name, version] of Object.entries(versions)) {
 }
 if (options.mode === 'mismatched-freeform-lock') packages['node_modules/freeform-modeling-mcp'].version = '1.0.28';
 if (options.mode === 'mismatched-tsx-lock') packages['node_modules/tsx'].version = '4.23.12';
-if (options.mode === 'mismatched-root-lock') dependencies['freeform-modeling-mcp'] = '^1.0.29';
+if (options.mode === 'mismatched-root-lock') dependencies['freeform-modeling-mcp'] = '^1.0.34';
 fs.writeFileSync('package-lock.json', JSON.stringify({ lockfileVersion: 3, packages }));
 fs.writeFileSync('package.json', JSON.stringify({ name: 'fixture', private: true, dependencies }));
 `;
@@ -101,11 +101,11 @@ async function cleaned(files) {
   }
 }
 
-test('installation resolves latest with bundled Node and records exact freeform and tsx versions', async (t) => {
+test('installation requests pinned Freeform with bundled Node and records exact versions', async (t) => {
   const files = await fixture(t);
   const installed = await files.install();
   assert.equal(installed.packageSpec, packageSpec);
-  assert.equal(installed.version, '1.0.29');
+  assert.equal(installed.version, '1.0.34');
   assert.equal(installed.tsxVersion, '4.23.13');
   assert.match(installed.directory, /^freeform\/install-[^/]+$/);
   assert.deepEqual(JSON.parse(await readFile(files.pointer, 'utf8')), installed);
@@ -122,14 +122,14 @@ test('installation resolves latest with bundled Node and records exact freeform 
   await cleaned(files);
 });
 
-test('another update resolves latest again, switches pointer and retains the previous version', async (t) => {
+test('reinstallation requests the same pinned version and retains the previous installation', async (t) => {
   const files = await fixture(t);
   const previous = await files.install();
   const oldManifest = path.join(files.runtime, previous.directory, 'node_modules', packageName, 'package.json');
   const oldBytes = await readFile(oldManifest);
-  const current = await files.install({ version: '1.0.30' });
+  const current = await files.install({ version: '1.0.34' });
   assert.notEqual(current.directory, previous.directory);
-  assert.equal(current.version, '1.0.30');
+  assert.equal(current.version, '1.0.34');
   assert.deepEqual(JSON.parse(await readFile(files.pointer, 'utf8')), current);
   assert.deepEqual(await readFile(oldManifest), oldBytes);
   const observations = await files.observations();
@@ -139,6 +139,7 @@ test('another update resolves latest again, switches pointer and retains the pre
 });
 
 for (const [options, expected] of [
+  [{ version: '1.0.35-rc.1' }, /version does not match the installation record/],
   [{ mode: 'download-failure' }, /download failed \(E503\)/],
   [{ mode: 'missing-bin' }, /does not declare its CLI entry/],
   [{ mode: 'escaping-bin' }, /entry is outside its package/],

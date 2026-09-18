@@ -19,7 +19,7 @@ process.stdout.write(JSON.stringify({
   execPath: process.execPath, cwd: process.cwd()
 }));`;
 
-async function fixture(t, { cli = describeInvocation, version = '1.0.29', tsxVersion = '4.23.13',
+async function fixture(t, { cli = describeInvocation, version = '1.0.34', tsxVersion = '4.23.13',
   recordedVersion = version, recordedTsxVersion = tsxVersion, realTsx, wrapper = publicWrapper } = {}) {
   const parent = await realpath(tmpdir());
   const root = await mkdtemp(join(parent, 'coohom-freeform-launch-test-'));
@@ -36,7 +36,7 @@ async function fixture(t, { cli = describeInvocation, version = '1.0.29', tsxVer
   await mkdir(join(freeform, 'src'), { recursive: true });
   await copyFile(launcherSource, join(runtime, 'launch-mcp.mjs'));
   const pointer = join(runtime, 'freeform-install.json');
-  await writeFile(pointer, JSON.stringify({ packageSpec: 'freeform-modeling-mcp@latest',
+  await writeFile(pointer, JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34',
     version: recordedVersion, tsxVersion: recordedTsxVersion, directory: 'freeform/install-fixture',
     installedAt: new Date().toISOString() }));
   await writeFile(join(freeform, 'package.json'), JSON.stringify({
@@ -110,10 +110,12 @@ for (const [args, expected] of [
   });
 }
 
-test('a newer installed version starts without a hardcoded package version', async (t) => {
-  const files = await fixture(t, { version: '1.1.0', tsxVersion: '4.24.0' });
+test('an installation outside the pinned version is rejected before execution', async (t) => {
+  const files = await fixture(t, { version: '1.0.35-rc.1', cli: "throw new Error('must-not-run');" });
   const result = await run(t, files).done;
-  assert.equal(result.code, 0, result.stderr);
+  assert.equal(result.code, 1);
+  assert.match(result.stderr, /installation record is invalid/);
+  assert.doesNotMatch(result.stderr, /must-not-run/);
 });
 
 test('stdio preserves binary bytes without launcher output', async (t) => {
@@ -144,7 +146,7 @@ test('rejected commands do not execute the upstream CLI', async (t) => {
 });
 
 test('dependency versions must match the recorded installation', async (t) => {
-  for (const options of [{ recordedVersion: '1.0.28' }, { recordedTsxVersion: '4.23.12' }]) {
+  for (const options of [{ version: '1.0.35-rc.1', recordedVersion: '1.0.34' }, { recordedTsxVersion: '4.23.12' }]) {
     const files = await fixture(t, options);
     const result = await run(t, files).done;
     assert.equal(result.code, 1);
@@ -164,8 +166,8 @@ test('missing or escaping installation records fail without attempting installat
   const missing = await run(t, files).done;
   assert.equal(missing.code, 1);
   assert.match(missing.stderr, /run the plugin installer or updater/);
-  await writeFile(files.pointer, JSON.stringify({ packageSpec: 'freeform-modeling-mcp@latest',
-    version: '1.0.29', tsxVersion: '4.23.13', directory: '../outside' }));
+  await writeFile(files.pointer, JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34',
+    version: '1.0.34', tsxVersion: '4.23.13', directory: '../outside' }));
   const escaped = await run(t, files).done;
   assert.equal(escaped.code, 1);
   assert.match(escaped.stderr, /installation record is invalid/);

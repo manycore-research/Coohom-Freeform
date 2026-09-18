@@ -31,7 +31,7 @@ Read [browser-session.md](references/browser-session.md) at the start. Distingui
 
 Handle `executor_required` through the documented connection flow. If readiness still fails after connection, or another connection error occurs, identify the affected MCP and collect the URL, tool output, UI/CLI state and available logs. Explain the evidence and let the user choose recovery. Do not repeatedly click, refresh or start competing instances.
 
-Prefer the two bundled MCPs and their actual names and namespaces in the current task. ZIP packages include Node/npm; installation or upgrade resolves both MCPs from `@latest`, while ordinary startup uses the recorded local versions. Users do not need to configure the MCPs manually. Lux3D uses web sign-in. Do not create new assets with legacy Aholo tools even if they remain exposed.
+Prefer the two bundled MCPs and their actual names and namespaces in the current task. ZIP packages include Node/npm; installation or upgrade uses `freeform-modeling-mcp@1.0.34` and `@manycore/coohom-lux3d-mcp@latest`, while ordinary startup uses the recorded local versions. Users do not need to configure the MCPs manually. Lux3D uses web sign-in. Do not create new assets with legacy Aholo tools even if they remain exposed.
 
 If tools are unavailable, check installation and enabled status and, when needed, guide the user to a new task. The installer reports conflicting global Freeform or same-name Lux3D services. Do not disable unrelated services or change global configuration without authorization.
 

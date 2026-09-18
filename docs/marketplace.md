@@ -27,7 +27,7 @@ Before adding this plugin, run `codex plugin list`. Keep only one enabled Coohom
 
 If a download fails, correct network access and retry startup. If logs report a stale lock or corrupted cache, stop all Coohom tasks and exit Codex first; confirm no Coohom preparation/MCP process is still using this cache, then remove only the affected plugin-owned cache directory and restart. Node is fetched again only when its cache is removed. Do not clear all Codex data, user scenes or other plugins. Uninstalling the plugin does not automatically delete this external cache.
 
-The initial release keeps the existing `latest` MCP policies. A new plugin/runtime revision resolves those packages again; a successful installation records exact versions and lockfiles. This does not promise reproducible dependency versions across first installations on different dates.
+The 0.1.0 release temporarily pins Freeform to `freeform-modeling-mcp@1.0.34` because the newer public CLI entry requires adapter changes. Lux3D retains `@manycore/coohom-lux3d-mcp@latest`. A new plugin/runtime revision prepares these dependencies again; a successful installation records exact versions and lockfiles. Transitive dependencies and Lux3D can still differ across first installations on different dates.
 
 ## Maintainers
 

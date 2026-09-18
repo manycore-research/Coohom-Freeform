@@ -13,7 +13,7 @@ The public tag is `v0.1.0`. This preview does not publish platform ZIP assets.
 
 - The plugin now defaults Lux3D to the production executor `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` through the public `LUX3D_MCP_EXECUTOR_URL` option. Explicit non-empty overrides remain supported. The MCP returns the full task-specific URL; users should not construct one manually. This endpoint update does not establish full online workflow acceptance.
 - Generation needs Coohom sign-in, service permissions and available credits. The hosted editor, generation service, accounts and billing are outside this source release.
-- Both MCPs resolve public npm `latest` on a fresh installation. Successful installations record exact versions and lockfiles; later starts reuse them. Dependency versions can differ between installations on different dates.
+- Freeform is temporarily pinned to public npm `freeform-modeling-mcp@1.0.34`: the newer `latest` CLI entry is incompatible with the current adapter. Lux3D continues to use `@manycore/coohom-lux3d-mcp@latest`. Successful installations record exact versions and lockfiles; later starts reuse them. The Freeform pin does not freeze all transitive dependencies or Lux3D.
 - Windows source/marketplace and local automated checks are verified separately from browser workflows. macOS runtime, sign-in, generation, archiving, import and visual scene acceptance remain pending.
 - Platform ZIP releases remain deferred until installer acceptance and runtime redistribution notices are complete. Source availability does not establish those checks.
 
@@ -34,6 +34,7 @@ Apply accepted GitHub contributions to the development repository before exporti
 
 ## Before a production release
 
+- Review and validate the newer Freeform public CLI contract before removing the temporary 1.0.34 pin.
 - Keep the production executor setting aligned with the public MCP configuration contract; revalidate the returned task URL after MCP updates.
 - Complete Windows and macOS installation, cold/warm MCP startup, sign-in, generation, import and continuous-editing acceptance for the exact candidate.
 - Complete third-party redistribution notices for the exact bundled runtime and resolved dependencies. Preserve project LICENSE files in every distribution.
