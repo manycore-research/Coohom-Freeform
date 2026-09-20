@@ -2,6 +2,10 @@
 
 ## Version and distribution
 
+The public plugin remains at **0.1.0** while internal tuning continues. Internal
+release numbers do not advance the public version. Refresh only the Codex build
+identifier for public snapshot updates until a public version change is explicitly approved.
+
 This repository contains the plugin, GitHub marketplace, installer/build sources,
 tests and documentation under the MIT license. Read the version from the
 [plugin manifest](../coohom-freeform/.codex-plugin/plugin.json) for the source
@@ -31,7 +35,7 @@ Apply accepted GitHub contributions to the development repository before exporti
 4. Build matching local platform packages using the development guide. Verify JSZip using the exact candidate's installed Freeform directory, then archive with `python scripts/release.py publish --freeform-runtime <freeform-install-directory>` (add `--repack` for static-only package refreshes). This updates local artifacts only; it does not upload anything to GitHub.
 5. Export with `python scripts/export_public.py --freeform-runtime <freeform-install-directory> --output dist/coohom-freeform-source.zip`. Retain the adjacent `.zip.licenses.json` report and SHA256 file with the release evidence. Review every selected file and check for credentials, local paths, internal documents and obsolete history. The allowlist is `public-source.json`.
 6. Apply the reviewed export to a separate checkout of the GitHub repository. Preserve its `.git` directory and existing public history. Review additions, changes and removals; do not overwrite community changes without integrating them upstream. Preserve executable Git modes on `bundler/marketplace/bootstrap` and `plugins/coohom-freeform/scripts/bootstrap`.
-7. Run checks again in that checkout, commit and push the selected source snapshot. Verify installation from the real GitHub URL and check the GitHub Actions results.
+7. During internal tuning, preserve the public 0.1.0 version policy and public changelog when applying exports. Set the canonical public manifest base version to `0.1.0`, refresh its build identifier with the official `update_plugin_cachebuster.py`, and regenerate the marketplace using `prepare_marketplace.py`. Record the synchronized changes under that public build, not internal release numbers. Run checks again in that checkout, commit and push the selected source snapshot. Verify installation from the real GitHub URL and check the GitHub Actions results.
 8. Tag the accepted public commit. Publish ZIPs and SHA256 files to GitHub Releases only when their own acceptance and redistribution review are complete. Never commit binaries, internal build records or test histories to the public source repository.
 
 ## Before a production release

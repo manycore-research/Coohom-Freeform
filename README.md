@@ -8,7 +8,7 @@
 
 Create and continuously edit Coohom 3D scenes in Codex using images and natural language. Combine Lux3D image-to-3D generation with room modeling, furniture placement and material editing.
 
-Read the version from the [plugin manifest](coohom-freeform/.codex-plugin/plugin.json) for the source checkout or installation you are using. Executor access depends on its configured environment and your account permissions. macOS runtime and the complete sign-in, generation and import flow remain pending acceptance. See [release status](docs/releasing.md) for distribution and validation details.
+**0.1.0 — public source preview, still under internal tuning.** The public version stays at 0.1.0 during this phase; build identifiers distinguish updates. Read the version from the [plugin manifest](coohom-freeform/.codex-plugin/plugin.json) for the source checkout or installation you are using. Executor access depends on its configured environment and your account permissions. macOS runtime and the complete sign-in, generation and import flow remain pending acceptance. See [release status](docs/releasing.md) for distribution and validation details.
 
 ### Install
 
@@ -35,7 +35,7 @@ Source and marketplace installation are provided. Platform ZIP publication remai
 
 在 Codex 中通过图片和自然语言创建、持续修改 Coohom 三维场景，结合 Lux3D 图片生模与自由造型，完成空间搭建、家具摆放和材质调整。
 
-版本以所使用源码或安装实例的[插件 manifest](coohom-freeform/.codex-plugin/plugin.json) 为准。执行页访问取决于配置的环境及账号权限。macOS 实际运行以及完整登录、生模、导入流程仍待验收。分发与验证范围详见[发布状态](docs/releasing.md)。
+**0.1.0：公开源码预览版，目前仍处于内部调优阶段。** 此阶段 public 版本保持 0.1.0，通过构建标记区分更新。版本以所使用源码或安装实例的[插件 manifest](coohom-freeform/.codex-plugin/plugin.json) 为准。执行页访问取决于配置的环境及账号权限。macOS 实际运行以及完整登录、生模、导入流程仍待验收。分发与验证范围详见[发布状态](docs/releasing.md)。
 
 ### 安装
 
@@ -62,7 +62,7 @@ codex plugin add coohom-freeform@coohom
 
 Codex で画像や自然言語を使い、Coohom の 3D シーンを作成・編集できます。Lux3D による画像からの 3D モデル生成、空間の作成、家具の配置、マテリアルの調整を組み合わせます。
 
-バージョンは、使用するソースまたはインストール先の[プラグイン manifest](coohom-freeform/.codex-plugin/plugin.json)で確認してください。実行ページへのアクセスは、設定された環境とアカウント権限に依存します。macOS の実動作とログイン・生成・インポートの全工程は検証待ちです。配布と検証の範囲は[リリース状況](docs/releasing.md)を参照してください。
+**0.1.0：公開ソースのプレビュー版で、現在も内部調整中です。** この段階では公開バージョンを 0.1.0 に維持し、ビルド識別子で更新を区別します。バージョンは、使用するソースまたはインストール先の[プラグイン manifest](coohom-freeform/.codex-plugin/plugin.json)で確認してください。実行ページへのアクセスは、設定された環境とアカウント権限に依存します。macOS の実動作とログイン・生成・インポートの全工程は検証待ちです。配布と検証の範囲は[リリース状況](docs/releasing.md)を参照してください。
 
 ### インストール
 
