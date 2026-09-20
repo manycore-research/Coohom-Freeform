@@ -11,7 +11,11 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-Restart Codex and open a new task. First startup can take several minutes while Node and both MCP dependencies are prepared. Each MCP installation has a 300-second limit. Failed installation waits for an explicit user choice rather than retrying or falling back automatically. Later startups reuse the recorded local versions and do not run npm. Startup diagnostics go to the MCP server's stderr log; generation does not start during installation. Plugin registration alone does not mean both MCPs are ready; wait for both to load before use. Coohom sign-in, credits and browser requirements are the same as for ZIP installations.
+Restart Codex and open a new task. First startup can take several minutes while Node and both MCP dependencies are prepared. Each MCP installation has a 300-second limit. Failed installation waits for an explicit user choice rather than retrying or falling back automatically. Later startups reuse the recorded local versions and do not run npm. Startup diagnostics go to the MCP server's stderr log; generation does not start during installation. Plugin registration alone does not mean both MCPs are ready; wait for both to load before use. Generation requires Coohom sign-in, service permissions and available credits.
+
+## Other downloads
+
+The [Releases page](https://github.com/manycore-research/Coohom-Freeform/releases) also provides lightweight tar.gz packages. Choose the most recent build, verify SHA256SUMS, extract all files and follow the included INSTALL.md. Keep the extracted folder as the local marketplace source. These packages contain no Install.cmd or Install.command; platform ZIP installers are not published.
 
 ## Existing installation
 
@@ -22,6 +26,8 @@ Before adding this plugin, run `codex plugin list`. Keep only one enabled Coohom
 - Windows: `%LOCALAPPDATA%\Coohom\Freeform\marketplace`
 - macOS: `~/Library/Caches/Coohom/Freeform/marketplace`
 - Optional override: set `COOHOM_FREEFORM_CACHE` in the environment that starts Codex. Restart Codex after changing it. The plugin explicitly forwards this variable to both MCPs.
+
+Use actual filesystem paths rather than directory aliases or symlinks. On Windows, keep extraction and cache paths short; a 266-character startup-script path was rejected by Windows PowerShell during validation.
 
 `node/` holds official Node distributions and their pinned archive SHA256 markers. `plugins/` holds immutable dependency installations separated by runtime source fingerprint, Node runtime, operating system and architecture; prose-only plugin version changes reuse the pair. A complete new installation is published atomically; failure does not mark a partial directory ready. Both MCPs share one pair preparation lock and activate together. Windows Node locks release automatically when the owner exits; shell/MCP preparation locks left by a forced termination require manual recovery.
 

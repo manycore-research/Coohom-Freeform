@@ -29,7 +29,7 @@ Requires Codex with plugin support, Git, and internet access to GitHub, nodejs.o
 
 Coohom sign-in and the relevant service permissions/credits are required for generation. This repository contains the plugin integration, skills, installation/build tools and tests; the two MCPs are external npm dependencies. Hosted editors, model services, accounts and billing are outside this source scope.
 
-Source and marketplace installation are provided. Platform ZIP publication remains pending installer acceptance and runtime redistribution checks. [Usage](coohom-freeform/README.md) · [Marketplace troubleshooting](docs/marketplace.md) · [Development](docs/development.md) · [MIT license](LICENSE)
+Marketplace installation is recommended. For a local package, download the most recent build's `coohom-freeform.tar.gz` from [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verify `SHA256SUMS` and follow its included `INSTALL.md`. Platform ZIP installers are not published; the lightweight tar.gz package contains no `Install.cmd` or `Install.command`. [Usage](coohom-freeform/README.md) · [Marketplace troubleshooting](docs/marketplace.md) · [Development](docs/development.md) · [MIT license](LICENSE)
 
 ## 中文
 
@@ -56,7 +56,7 @@ codex plugin add coohom-freeform@coohom
 
 生模需要 Coohom 登录及相应服务权限、额度。本仓库公开插件集成层、技能、安装构建工具和测试；两个 MCP 通过独立 npm 包获取。在线编辑器、生模服务、账号及计费系统不在源码范围内。
 
-提供源码和 marketplace 安装；平台 ZIP 发布仍待安装器验收及运行时再分发检查完成。[使用说明](coohom-freeform/README.md) · [安装排障](docs/marketplace.md) · [开发说明](docs/development.md) · [MIT 许可证](LICENSE)
+推荐使用 marketplace 安装。需要本地安装包时，请从 [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) 下载最新构建的 `coohom-freeform.tar.gz`，核对 `SHA256SUMS`，再按包内 `INSTALL.md` 安装。平台 ZIP 安装器尚未发布，轻量 tar.gz 包中不包含 `Install.cmd` 或 `Install.command`。[使用说明](coohom-freeform/README.md) · [安装排障](docs/marketplace.md) · [开发说明](docs/development.md) · [MIT 许可证](LICENSE)
 
 ## 日本語
 
@@ -83,4 +83,4 @@ codex plugin add coohom-freeform@coohom
 
 生成には Coohom へのログインと必要な権限・クレジットが必要です。公開範囲はプラグイン、スキル、インストール・ビルド用ツール、テストです。MCP は外部 npm パッケージで、オンラインエディターや生成・認証・課金サービスは含まれません。
 
-ソースと marketplace 経由でインストールできます。OS 別 ZIP の公開は、インストーラーの検証とランタイム再配布の確認が完了するまで保留しています。[使い方](coohom-freeform/README.md) · [開発](docs/development.md) · [MIT License](LICENSE)
+marketplace 経由のインストールを推奨します。ローカルパッケージが必要な場合は、[Releases](https://github.com/manycore-research/Coohom-Freeform/releases) から最新ビルドの `coohom-freeform.tar.gz` を取得し、`SHA256SUMS` を確認して、同梱の `INSTALL.md` に従ってください。OS 別 ZIP は未公開で、軽量 tar.gz には `Install.cmd` や `Install.command` は含まれません。[使い方](coohom-freeform/README.md) · [開発](docs/development.md) · [MIT License](LICENSE)

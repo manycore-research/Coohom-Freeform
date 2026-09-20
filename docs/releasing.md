@@ -12,15 +12,19 @@ tests and documentation under the MIT license. Read the version from the
 checkout or installation being used. The full version includes a
 `+codex.<UTC timestamp>` build identifier. Published tags and assets identify
 released artifacts; a source checkout version alone does not establish publication.
-Platform ZIP publication remains pending installer acceptance and runtime
-redistribution checks.
+The [Releases page](https://github.com/manycore-research/Coohom-Freeform/releases)
+provides lightweight tar.gz marketplace packages and SHA256SUMS. These packages
+download Node/npm and MCP dependencies on first startup. Platform ZIP installers
+are not published; their publication remains pending installer acceptance and
+runtime redistribution checks.
 
 ## Service and validation limits
 
 - Record the installed MCP version and validate sign-in, generation and import using the task URL it returns.
 - Generation needs Coohom sign-in, service permissions and available credits. The hosted editor, generation service, accounts and billing are outside this source release.
 - Both MCPs resolve public npm `latest` at installation time: `freeform-modeling-mcp@latest` and `@manycore/coohom-lux3d-mcp@latest`. Freeform supports the public bundled ESM CLI and the legacy TypeScript wrapper. Successful installations record exact versions and lockfiles; later starts reuse them.
-- Windows source/marketplace and local automated checks are verified separately from browser workflows. macOS runtime, sign-in, generation, archiving, import and visual scene acceptance remain pending.
+- Build `0.1.0+codex.20260920073152` passed isolated Windows package installation, cold/warm MCP startup and tool discovery. Its release page records the exact dependency versions and verification scope. Windows and macOS CI passed after the test-path-only fix at `5f196f3`. This does not establish macOS runtime or browser workflow acceptance.
+- Use actual filesystem paths and short Windows extraction/cache paths. The launcher's directory-alias limitation is retained. macOS runtime, sign-in, generation, archiving, import and visual scene acceptance remain pending.
 - Platform ZIP releases remain deferred until installer acceptance and runtime redistribution notices are complete. Source availability does not establish those checks.
 
 ## GitLab development, GitHub export

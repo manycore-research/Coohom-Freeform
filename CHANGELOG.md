@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.0+codex.20260920090704 — 2026-09-20
+
+- Recommend GitHub marketplace installation and document the lightweight release archive as the local-package option.
+- Distinguish the published tar.gz packages from unpublished platform ZIP installers.
+- Document real-path and Windows path-length requirements. MCP launchers, skills and dependency policies are unchanged.
+
 ## 0.1.0+codex.20260920073152 — 2026-09-20
 
 Public source preview; internal tuning continues. The public version remains 0.1.0.
