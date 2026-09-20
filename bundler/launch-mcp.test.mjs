@@ -7,7 +7,8 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 const here = path.dirname(fileURLToPath(import.meta.url));
 async function fixture(t, { bin = 'different-entry.cjs', version = '9.4.0', cli = "process.stdout.write(JSON.stringify({args:process.argv.slice(2),cwd:process.cwd(),offline:process.env.npm_config_offline}));" } = {}) {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'coohom public 中文 '));
+  // macOS temporary paths may be aliases; launch this fixture through its real path.
+  const root = await fs.mkdtemp(path.join(await fs.realpath(os.tmpdir()), 'coohom public 中文 '));
   t.after(() => fs.rm(root, {recursive:true,force:true}));
   const runtime = path.join(root, 'runtime/mcp');
   const installation = path.join(runtime, 'freeform/install-fixture');
