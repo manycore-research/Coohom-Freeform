@@ -6,7 +6,7 @@ Use Python 3.11+ and Node.js 22+. Lux3D MCP is an external public npm dependency
 python -B -m unittest discover -s scripts -p "test_*.py"
 python -B -m unittest discover -s bundler -p "test_*.py"
 python -B scripts/check_release_text.py
-node --test bundler/install.test.mjs bundler/launch-mcp.test.mjs bundler/launch-lux3d.test.mjs bundler/update-freeform.test.mjs bundler/update-lux3d.test.mjs bundler/marketplace.test.mjs
+node --test bundler/manage-mcp.test.mjs bundler/install.test.mjs bundler/launch-mcp.test.mjs bundler/launch-lux3d.test.mjs bundler/update-freeform.test.mjs bundler/update-lux3d.test.mjs bundler/marketplace.test.mjs bundler/smoke-contract.test.mjs
 ```
 
 ## Build installers
@@ -15,14 +15,18 @@ The builder uses Codex's official `plugin-creator` skill to generate the install
 
 ```sh
 python bundler/build.py --targets win32-x64 darwin-arm64 --node <node-executable> --npm-cli <npm-cli.js> --scaffold <plugin-creator>/scripts/create_basic_plugin.py
-python scripts/release.py publish
+python scripts/release.py publish --freeform-runtime <freeform-install-directory>
 ```
 
-The build downloads official Node.js 22.23.2 archives and verifies their SHA256 checksums. The installation packages carry Node and npm. At installation time they download `freeform-modeling-mcp@1.0.34` and `@manycore/coohom-lux3d-mcp@latest` from public npm. Freeform uses `npm ci` with `bundler/freeform-package-lock.json`, including the tsx version declared in `bundler/freeform-policy.json`. The lock contains public npm URLs, integrity hashes and optional binaries for both supported platforms. Installation retains the 300-second timeout and two download retries.
+The build downloads official Node.js 22.23.2 archives and verifies their SHA256 checksums. The installation packages carry Node and npm. At installation time they download `freeform-modeling-mcp@latest` and `@manycore/coohom-lux3d-mcp@latest` from public npm. Both packages install their declared dependencies; the plugin does not pin or inject tsx. Each installation records its actual versions and generated npm lockfile. Installation keeps the 300-second timeout per package and requires explicit retry after failure.
 
-To update the Freeform dependency tree, use a clean temporary directory with a private `coohom-freeform-runtime` package at version `1.0.0` and exact dependencies matching the policy. Generate a fresh lock with the bundled npm using the public registry and `--ignore-scripts --no-audit --no-fund --engine-strict`, review all resolved URLs and platform entries, then replace `bundler/freeform-package-lock.json`. Regenerate the marketplace and rebuild both platform packages. Validate cold and warm startup before release; never edit only the generated plugin or silently resolve a new tree during user installation.
+When changing dependency policies or CLI adapters, validate the actual resolved package entrypoints and tool schemas, regenerate the marketplace and rebuild both platform packages. Validate cold and warm startup before release. Ordinary startup reuses the recorded installation without resolving a newer dependency tree.
 
 The ZIP marketplace is included in each platform package. The repository marketplace uses the generated `plugins/coohom-freeform/` plugin and prepares its own runtime on first startup. Follow [marketplace development instructions](marketplace.md) after canonical plugin or bootstrap changes; CI rejects stale generated files.
+
+Maintain release history only in the repository-root [CHANGELOG.md](../CHANGELOG.md). Marketplace generation and platform packaging copy it into the installable plugin; do not edit those generated copies.
+
+Maintain third-party notices in root `THIRD_PARTY.md` and `licenses/`; marketplace generation, full builds and repacks carry the same files. Run `python -B scripts/third_party.py --notices-only` for offline notice validation. See [release-only JSZip verification](releasing.md#jszip-release-only-verification) before publishing; it does not change runtime installation behavior.
 
 Run `Install.cmd --check` or `Install.command --check` from an extracted package for a read-only installation plan. Actual installation affects the user's Codex configuration and is a separate verification step.
 
@@ -32,10 +36,14 @@ On Windows x64, run `node bundler/marketplace-smoke.mjs <absolute-codex.exe> tmp
 
 ## Dependencies and diagnostics
 
-npm retries transient download failures up to twice, with 1–5 second retry delays, a 60-second request timeout and a 300-second installation limit per MCP.
+Smoke checks validate current MCP tool declarations structurally in `bundler/smoke-contract.mjs`; they do not gate installation on a fixed list of tool names. Schema discovery is not proof of semantic or task compatibility. The optional synthetic Lux3D disconnected-executor fixture remains a version-specific regression, not a production compatibility gate. Do not call it automatically against arbitrary new versions.
 
-The shared Lux3D launcher defaults `LUX3D_MCP_EXECUTOR_URL` to `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` before loading the public MCP entrypoint. Both platform ZIPs and the repository marketplace use this launcher. Non-empty explicit overrides are preserved.
+Plugin version checks accept release versions with a 14-digit Codex cachebuster instead of a fixed patch version. Freeform startup log collection covers both legacy package-local logs and bundled CLI logs under its installation's `node_modules/logs`; Lux3D logs are excluded.
 
-Policy files declare the package source; each successful installation records exact versions and npm lockfiles under its own runtime directory. Startup runs those installed files without downloading updates. Keep npm package names separate from the MCP server key `lux3d-mcp-server` and executable name, which remain stable.
+npm uses a 60-second request timeout and a 300-second limit per MCP, without automatic retries. The pair manager persists failures; first the user chooses retry/stop, then another exact pair/stop if retry failed. ZIP and marketplace share this manager.
 
-Do not place tokens, cookies, authorization headers, signed URLs or real user scenes in tests or reports. Use synthetic executor responses for automated tests; model generation spends account credits.
+Both platform ZIPs and the repository marketplace use the shared [Lux3D launcher](../bundler/launch-lux3d.mjs) to start the installed MCP through its public CLI.
+
+Policy files declare the package source; each successful installation records exact versions and npm lockfiles under its own runtime directory. Startup runs those installed files without downloading updates. Keep npm package names separate from the plugin-owned MCP server key `lux3d-mcp-server`; executable paths come from the public package manifest.
+
+Do not place tokens, cookies, authorization headers, signed URLs or real user scenes in tests or reports. Use synthetic executor responses for automated tests; model generation may consume a free allowance or account Credits.

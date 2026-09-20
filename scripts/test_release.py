@@ -14,6 +14,8 @@ import zipfile
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import release
 from release import archive_release, publish_current
+from third_party import notice_files
+from test_third_party import license_fixture
 
 
 TARGETS = {
@@ -44,9 +46,14 @@ class ReleaseArchiveTest(unittest.TestCase):
         self.root = Path(temporary.name)
         self.repo = self.root / "repo"
         self.repo.mkdir()
-        changelog = self.repo / "coohom-freeform" / "CHANGELOG.md"
-        changelog.parent.mkdir()
+        changelog = self.repo / "CHANGELOG.md"
         changelog.write_text("# Release history\n", encoding="utf-8")
+        (self.root / "CHANGELOG.md").write_bytes(changelog.read_bytes())
+        self.runtime = license_fixture(self.repo, self.root / 'installed')
+        for name, content in notice_files(self.repo).items():
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
 
     @property
     def releases(self):
@@ -62,6 +69,8 @@ class ReleaseArchiveTest(unittest.TestCase):
                 for name, data in plugin_files(target_version, body or "A room modeling skill.\n").items()
             }
             files.update({
+                "CHANGELOG.md": (self.repo / "CHANGELOG.md").read_bytes(),
+                f"{PLUGIN_PREFIX}CHANGELOG.md": (self.repo / "CHANGELOG.md").read_bytes(),
                 "bundle.json": json_bytes({
                     "version": target_version, "platform": platform, "arch": arch,
                     "pluginName": "coohom-freeform", "marketplaceName": "coohom-freeform-local",
@@ -71,6 +80,9 @@ class ReleaseArchiveTest(unittest.TestCase):
                 f"{PLUGIN_PREFIX}runtime/node/{node_path}": b"fixture-node-runtime",
                 f"{PLUGIN_PREFIX}runtime/node/npm/bin/npm-cli.js": b"// fixture npm\n",
             })
+            for name, content in notice_files(self.repo).items():
+                files[name] = content
+                files[PLUGIN_PREFIX + name] = content
             archive = directory / f"coohom-freeform-{target}.zip"
             with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_STORED) as bundle:
                 for name, data in sorted(files.items()):
@@ -224,10 +236,12 @@ class ReleaseArchiveTest(unittest.TestCase):
             path = source / relative
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
-        (source / "CHANGELOG.md").write_text(
+        (self.repo / "CHANGELOG.md").write_text(
             f"# 更新日志\n\n## {NEW_VERSION} — 2026-09-13\n\n- 更新技能并移除旧指令。\n",
             encoding="utf-8",
         )
+        with (source / "README.md").open("a", encoding="utf-8") as stream:
+            stream.write("\n[Changelog](../CHANGELOG.md)\n")
         return source
 
     def latest_hashes(self):
@@ -239,20 +253,28 @@ class ReleaseArchiveTest(unittest.TestCase):
     def test_repack_removes_deleted_source_files_and_keeps_runtime(self):
         source = self.prepare_publication()
         historical = self.snapshot(self.releases / OLD_VERSION)
-        published = publish_current(self.repo, repack=True)
+        published = publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
         self.assertEqual(published.name, NEW_VERSION)
+        record = json.loads((published / 'release.json').read_bytes())
+        self.assertEqual(record['provenance']['jszipLicenseReview']['jszip'][0]['licenseConcluded'], 'MIT')
         self.assertEqual(self.snapshot(self.releases / OLD_VERSION), historical)
         for target, (_, _, _, node_path) in TARGETS.items():
             archive = self.repo / "dist" / f"coohom-freeform-{target}.zip"
             root = f"coohom-freeform-{target}/"
             with zipfile.ZipFile(archive) as bundle:
+                for name, content in notice_files(self.repo).items():
+                    self.assertEqual(bundle.read(root + name), content)
+                    self.assertEqual(bundle.read(root + PLUGIN_PREFIX + name), content)
                 self.assertNotIn(root + PLUGIN_PREFIX + "skills/coohom-freeform/obsolete.md", bundle.namelist())
                 self.assertEqual(
                     bundle.read(root + PLUGIN_PREFIX + "runtime/node/" + node_path),
                     b"fixture-node-runtime",
                 )
                 for relative in ("README.md", "CHANGELOG.md"):
-                    self.assertEqual(bundle.read(root + relative), (source / relative).read_bytes())
+                    canonical = self.repo / relative if relative == "CHANGELOG.md" else source / relative
+                    expected = canonical.read_bytes().replace(b'](../CHANGELOG.md)', b'](CHANGELOG.md)')
+                    self.assertEqual(bundle.read(root + relative), expected)
+                self.assertEqual(bundle.read(root + PLUGIN_PREFIX + "CHANGELOG.md"), (self.repo / "CHANGELOG.md").read_bytes())
                 self.assertEqual(
                     bundle.read(root + PLUGIN_PREFIX + "skills/coohom-freeform/SKILL.md"),
                     (source / "skills/coohom-freeform/SKILL.md").read_bytes(),
@@ -260,7 +282,7 @@ class ReleaseArchiveTest(unittest.TestCase):
 
     def test_repack_records_platform_specific_validation_scope(self):
         self.prepare_publication()
-        publish_current(self.repo, repack=True)
+        publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
 
         windows = json.loads((self.repo / "dist" / "coohom-freeform-windows-x64.build.json").read_text())
         macos = json.loads((self.repo / "dist" / "coohom-freeform-macos-arm64.build.json").read_text())
@@ -278,7 +300,7 @@ class ReleaseArchiveTest(unittest.TestCase):
             "scope": "ZIP integrity, SHA256/build metadata, complete installer structure, exact static plugin source file set and contents, bundle-root changelog and macOS executable permissions. No platform installer execution or full unchanged-runtime comparison.",
         }
         old_record_path.write_bytes(json_bytes(old_record))
-        publish_current(self.repo, repack=True)
+        publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
         current = json.loads((self.repo / "dist" / "coohom-freeform-windows-x64.build.json").read_text())
         historical = current["validationHistory"][-1]
 
@@ -303,12 +325,12 @@ class ReleaseArchiveTest(unittest.TestCase):
 
         with patch.object(release, "repack_artifact", side_effect=fail_second):
             with self.assertRaisesRegex(ValueError, "second-platform"):
-                publish_current(self.repo, repack=True)
+                publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
         self.assertEqual(len(calls), 2, "First candidate must finish before the injected failure")
         self.assertEqual(self.latest_hashes(), previous)
         self.assertEqual(self.snapshot(self.releases), history)
         self.assert_no_release(NEW_VERSION)
-        published = publish_current(self.repo, repack=True)
+        published = publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
         self.assertEqual(published.name, NEW_VERSION)
         self.assertNotEqual(self.latest_hashes(), previous)
         for target in TARGETS:
@@ -320,11 +342,11 @@ class ReleaseArchiveTest(unittest.TestCase):
 
     def test_repack_of_already_archived_version_reuses_identical_packages(self):
         self.prepare_publication()
-        published = publish_current(self.repo, repack=True)
+        published = publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
         previous = self.latest_hashes()
         history = self.snapshot(self.releases)
         with patch.object(release, "repack_artifact", side_effect=AssertionError("Archived bytes should be reused")):
-            repeated = publish_current(self.repo, repack=True)
+            repeated = publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
         self.assertEqual(repeated, published)
         # Revalidation may refresh latest build evidence; download bytes stay immutable.
         for name, digest in previous.items():
@@ -342,6 +364,54 @@ class ReleaseArchiveTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.archive(inputs, source_dir=source)
         self.assert_no_release(OLD_VERSION)
+
+    def test_license_failure_preserves_latest_artifacts_and_history(self):
+        self.prepare_publication()
+        previous = self.latest_hashes()
+        history = self.snapshot(self.releases)
+        (self.runtime / 'node_modules/jszip/LICENSE.markdown').write_text('changed')
+        with self.assertRaisesRegex(ValueError, 'license text changed'):
+            publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
+        self.assertEqual(previous, self.latest_hashes())
+        self.assertEqual(history, self.snapshot(self.releases))
+        self.assert_no_release(NEW_VERSION)
+
+    def test_publish_without_actual_dependencies_is_rejected(self):
+        self.prepare_publication()
+        with self.assertRaisesRegex(ValueError, 'requires --freeform-runtime'):
+            publish_current(self.repo, repack=True)
+
+    def test_unverified_historical_archive_cannot_be_relabelled_as_verified(self):
+        self.prepare_publication()
+        inputs = self.write_inputs(self.root / 'unverified', NEW_VERSION)
+        self.archive(inputs, release.notes_for_version(self.repo, NEW_VERSION))
+        history = self.snapshot(self.releases)
+        with self.assertRaisesRegex(ValueError, 'Archived release lacks JSZip verification'):
+            publish_current(self.repo, repack=True, freeform_runtime=self.runtime)
+        self.assertEqual(history, self.snapshot(self.releases))
+
+    def test_prepare_writes_root_changelog_and_preserves_history(self):
+        source = self.repo / "coohom-freeform"
+        for relative, data in plugin_files(OLD_VERSION).items():
+            path = source / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        previous = f"# Changelog\n\n## {OLD_VERSION}\n\n- Previous release.\n"
+        (self.repo / "CHANGELOG.md").write_text(previous, encoding="utf-8")
+        self.write_inputs(self.repo / "dist", OLD_VERSION)
+        helper = self.root / "cachebuster.py"
+        helper.write_text(
+            "import json, pathlib, sys\n"
+            "p = pathlib.Path(sys.argv[1]) / '.codex-plugin/plugin.json'\n"
+            "data = json.loads(p.read_text())\n"
+            f"data['version'] = {NEW_VERSION!r}\n"
+            "p.write_text(json.dumps(data))\n", encoding="utf-8")
+        self.assertEqual(release.prepare_release(self.repo, ["Moved release history."], helper), NEW_VERSION)
+        changelog = (self.repo / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(f"## {NEW_VERSION}", changelog)
+        self.assertIn("- Moved release history.", changelog)
+        self.assertTrue(changelog.endswith(previous.split("\n\n", 1)[1]))
+        self.assertFalse((source / "CHANGELOG.md").exists())
 
     def test_matching_source_allows_semantically_identical_manifest(self):
         inputs = self.write_inputs(self.root / "inputs", OLD_VERSION)

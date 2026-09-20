@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import re
 import zipfile
+from third_party import notice_files, verify_jszip, write_report
 
 
 def source_files(repo: Path) -> list[Path]:
@@ -57,9 +58,33 @@ def export(repo: Path, output: Path) -> int:
     return len(files)
 
 
+def export_release(repo: Path, output: Path, freeform_runtime: Path) -> int:
+    from prepare_marketplace import check
+    check(repo)
+    report = verify_jszip(repo, freeform_runtime)
+    count = export(repo, output)
+    with output.open('rb') as stream:
+        report['sourceArchiveSha256'] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    write_report(output.with_suffix(output.suffix + '.licenses.json'), report)
+    return count
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--freeform-runtime', type=Path, help='Verify actual JSZip dependencies before a release export.')
+    mode.add_argument('--source-only', action='store_true', help='CI/development source snapshot, without release dependency verification.')
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    print(f'Exported {export(root, args.output)} public source files to {args.output}')
+    try:
+        if args.source_only:
+            notice_files(root)
+            count = export(root, args.output)
+            args.output.with_suffix(args.output.suffix + '.licenses.json').unlink(missing_ok=True)
+            print('Source-only snapshot; installed dependency licenses were not verified.')
+        else:
+            count = export_release(root, args.output, args.freeform_runtime)
+        print(f'Exported {count} public source files to {args.output}')
+    except (ValueError, OSError) as error:
+        parser.exit(1, f'{error}\n')

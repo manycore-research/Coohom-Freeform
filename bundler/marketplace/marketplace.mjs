@@ -6,11 +6,11 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const SERVICES = {
-  freeform: { updater: 'update-freeform.mjs', install: 'installFreeform', launcher: 'launch-mcp.mjs', args: ['start', '--stdio'] },
-  lux3d: { updater: 'update-lux3d.mjs', install: 'installLux3d', launcher: 'launch-lux3d.mjs', args: [] },
+  freeform: { launcher: 'launch-mcp.mjs', args: ['start', '--stdio'] },
+  lux3d: { launcher: 'launch-lux3d.mjs', args: [] },
 };
 export const RUNTIME_FILES = ['launch-mcp.mjs', 'launch-lux3d.mjs', 'update-freeform.mjs',
-  'update-lux3d.mjs', 'freeform-policy.json', 'freeform-package-lock.json', 'lux3d-policy.json'];
+  'update-lux3d.mjs', 'runtime-contract.mjs', 'manage-mcp.mjs', 'freeform-policy.json', 'lux3d-policy.json'];
 const log = (message) => process.stderr.write(`[coohom-freeform] ${message}\n`);
 
 async function readJson(filename) {
@@ -57,66 +57,43 @@ async function acquireLock(directory, timeoutMs) {
   }
 }
 
-export async function prepareRuntime({ sourceRoot, cacheRoot, service, nodeExecutable = process.execPath, npmCliPath, lockTimeoutMs = 360_000 }) {
+export async function prepareRuntime({ sourceRoot, cacheRoot, service, nodeExecutable = process.execPath, npmCliPath,
+  lockTimeoutMs = 660_000, action = 'ensure', versions }) {
   if (!Object.hasOwn(SERVICES, service)) throw new Error('Expected freeform or lux3d.');
   const manifest = await readJson(path.join(sourceRoot, '.codex-plugin/plugin.json'));
-  if (manifest.name !== 'coohom-freeform' || !/^\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.+-]+)?$/.test(manifest.version)) {
-    throw new Error('Invalid Coohom plugin identity or version.');
-  }
+  if (manifest.name !== 'coohom-freeform') throw new Error('Invalid Coohom plugin identity.');
   const source = path.join(sourceRoot, 'scripts/mcp');
-  const fingerprint = createHash('sha256').update(manifest.version).update(process.version).update(process.platform).update(process.arch);
+  const fingerprint = createHash('sha256').update(process.version).update(process.platform).update(process.arch);
   const contents = new Map();
   for (const name of RUNTIME_FILES) {
     const bytes = await fs.readFile(path.join(source, name));
     contents.set(name, bytes);
     fingerprint.update(name).update(bytes);
   }
-  fingerprint.update(await fs.readFile(path.join(sourceRoot, 'scripts/marketplace.mjs')));
   const revision = fingerprint.digest('hex').slice(0, 24);
-  const parent = path.resolve(cacheRoot, 'plugins', `${manifest.version}-${revision}`);
-  const destination = path.join(parent, service);
-  const ready = { version: manifest.version, revision, service, nodeVersion: process.version };
-  const readyPath = path.join(destination, '.ready.json');
-  async function isReady() {
-    try {
-      const actual = await readJson(readyPath);
-      if (Object.entries(ready).some(([key, value]) => actual[key] !== value)) throw new Error('Coohom runtime cache metadata does not match this plugin. Follow the cache repair instructions.');
-      return true;
-    } catch (error) { if (error.code === 'ENOENT') return false; throw error; }
-  }
-  if (await isReady()) return destination;
+  const parent = path.resolve(cacheRoot, 'plugins', revision);
+  const destination = path.join(parent, 'pair');
+  const runtime = path.join(destination, 'runtime/mcp');
+  const manager = await import(pathToFileURL(path.join(source, 'manage-mcp.mjs')).href);
+  const options = { pluginRoot: destination, nodeExecutable, npmCliPath, action, versions,
+    stateRoot: path.resolve(cacheRoot, 'mcp-state'), writeLine: log, lockTimeoutMs };
+  if (action === 'status') return { pluginRoot: destination, ...await manager.manageMcp(options) };
   await fs.mkdir(parent, { recursive: true });
-  const unlock = await acquireLock(path.join(parent, `${service}.lock`), lockTimeoutMs);
-  let stage;
+  const unlock = await acquireLock(path.join(parent, 'prepare.lock'), lockTimeoutMs);
   try {
-    if (await isReady()) return destination;
-    try { await fs.access(destination); throw new Error('Incomplete Coohom runtime cache. Follow the cache repair instructions.'); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
-    stage = await fs.mkdtemp(path.join(parent, `.${service}-`));
-    const runtime = path.join(stage, 'runtime/mcp');
     await fs.mkdir(runtime, { recursive: true });
     for (const [name, bytes] of contents) await fs.writeFile(path.join(runtime, name), bytes);
-    const config = SERVICES[service];
-    const updater = await import(pathToFileURL(path.join(source, config.updater)).href);
-    await updater[config.install]({ pluginRoot: stage, nodeExecutable, npmCliPath, writeLine: log });
-    await fs.writeFile(path.join(stage, '.ready.json'), JSON.stringify(ready));
-    await fs.rename(stage, destination);
-    stage = undefined;
-    log(`${service} is ready. Subsequent startup uses this local installation.`);
+    await manager.manageMcp(options);
     return destination;
-  } finally {
-    if (stage && path.dirname(stage) === parent && path.basename(stage).startsWith(`.${service}-`)) {
-      await fs.rm(stage, { recursive: true, force: true });
-    }
-    await unlock();
-  }
+  } finally { await unlock(); }
 }
 
 async function main() {
-  const [service, cacheRoot, npmCliPath, ...extra] = process.argv.slice(2);
+  const [service, cacheRoot, npmCliPath, action, freeform, lux3d, ...extra] = process.argv.slice(2);
   if (!service || !cacheRoot || !npmCliPath || extra.length) throw new Error('Start the MCP through scripts/bootstrap.');
   const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-  const root = await prepareRuntime({ sourceRoot, cacheRoot, service, npmCliPath });
+  const root = await prepareRuntime({ sourceRoot, cacheRoot, service, npmCliPath, action: action ?? 'ensure', versions: { freeform, lux3d } });
+  if (action) { process.stdout.write(JSON.stringify(root, null, 2) + '\n'); return; }
   const config = SERVICES[service];
   const env = { ...process.env };
   for (const key of Object.keys(env)) {

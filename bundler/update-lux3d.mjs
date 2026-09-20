@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readPublicCli } from './runtime-contract.mjs';
 
 const PACKAGE = '@manycore/coohom-lux3d-mcp';
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -33,7 +34,9 @@ function runNpm(node, args, { cwd, env }) {
   });
 }
 
-export async function installLux3d({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log } = {}) {
+export async function installLux3d({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log, version = 'latest' } = {}) {
+  if (version !== 'latest' && !VERSION.test(version)) throw new Error('Expected latest or an exact MCP version.');
+  const packageSpec = `${PACKAGE}@${version}`;
   const plugin = path.resolve(pluginRoot);
   const runtime = path.join(plugin, 'runtime', 'mcp');
   const policy = JSON.parse(await fs.readFile(path.join(runtime, 'lux3d-policy.json'), 'utf8'));
@@ -67,28 +70,19 @@ export async function installLux3d({ pluginRoot, nodeExecutable, npmCliPath, env
     for (const key of Object.keys(childEnv)) {
       if (['aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'node_options', 'node_path'].includes(key.toLowerCase())) delete childEnv[key];
     }
-    writeLine(`Installing ${policy.packageSpec}. Access to public npm is required.`);
-    await runNpm(node, [npmCli, 'install', policy.packageSpec, '--save-exact', '--omit=dev',
+    writeLine(`Installing ${packageSpec}. Access to public npm is required.`);
+    await runNpm(node, [npmCli, 'install', packageSpec, '--save-exact', '--omit=dev',
       '--ignore-scripts', '--no-audit', '--no-fund', '--engine-strict', '--prefer-online',
-      '--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000', '--registry=https://registry.npmjs.org/',
+      '--fetch-retries=0', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000', '--registry=https://registry.npmjs.org/',
       `--@manycore:registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
-    const packageDirectory = path.join(stage, 'node_modules', '@manycore', 'coohom-lux3d-mcp');
-    const manifest = JSON.parse(await fs.readFile(path.join(packageDirectory, 'package.json'), 'utf8'));
-    const bin = typeof manifest.bin === 'string' ? manifest.bin : manifest.bin?.['lux3d-mcp-server'];
-    if (manifest.name !== PACKAGE || !VERSION.test(manifest.version) || typeof bin !== 'string' || !bin) {
-      throw new Error('The downloaded Lux3D package has no valid version or public CLI entry. The previous installation was preserved.');
-    }
-    const entry = path.resolve(packageDirectory, bin);
-    if (!inside(packageDirectory, entry)
-      || !inside(await fs.realpath(packageDirectory), await fs.realpath(entry))) {
-      throw new Error('The Lux3D CLI entry is outside the package directory. The previous installation was preserved.');
-    }
+    const { manifest } = await readPublicCli(stage, PACKAGE, undefined, 'lux3d-mcp-server');
+    if (version !== 'latest' && manifest.version !== version) throw new Error('Installed MCP does not match the requested exact version.');
     const packageLock = JSON.parse(await fs.readFile(path.join(stage, 'package-lock.json'), 'utf8'));
     if (packageLock.packages?.[`node_modules/${PACKAGE}`]?.version !== manifest.version
       || packageLock.packages?.['']?.dependencies?.[PACKAGE] !== manifest.version) {
       throw new Error('The installed Lux3D version does not match the lockfile. The previous installation was preserved.');
     }
-    const installation = { packageSpec: policy.packageSpec, version: manifest.version,
+    const installation = { packageSpec, version: manifest.version,
       directory: path.relative(runtime, stage).split(path.sep).join('/'),
       installedAt: new Date().toISOString() };
     pointerTemporary = path.join(runtime, `.lux3d-install-${path.basename(stage)}.json`);
@@ -108,11 +102,6 @@ export async function installLux3d({ pluginRoot, nodeExecutable, npmCliPath, env
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 3) {
-    process.stderr.write('Usage: node update-lux3d.mjs <plugin-root>\n');
-    process.exitCode = 1;
-  } else {
-    try { await installLux3d({ pluginRoot: process.argv[2] }); }
-    catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }
-  }
+  process.stderr.write('Use manage-mcp.mjs <plugin-root> install|retry|versions to update both MCPs together.\n');
+  process.exitCode = 1;
 }

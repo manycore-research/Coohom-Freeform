@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { FREEFORM_VERSION, validateFreeformRuntime } from './launch-mcp.mjs';
+import { validateFreeformRuntime } from './launch-mcp.mjs';
 
 const PACKAGE = 'freeform-modeling-mcp';
 const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
@@ -33,23 +33,15 @@ function runNpm(node, args, { cwd, env }) {
   });
 }
 
-export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log } = {}) {
+export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log, version = 'latest' } = {}) {
+  if (version !== 'latest' && !VERSION.test(version)) throw new Error('Expected latest or an exact MCP version.');
+  const packageSpec = `${PACKAGE}@${version}`;
   const plugin = path.resolve(pluginRoot);
   const runtime = path.join(plugin, 'runtime', 'mcp');
   const policy = JSON.parse(await fs.readFile(path.join(runtime, 'freeform-policy.json'), 'utf8'));
-  if (policy.packageSpec !== `${PACKAGE}@${FREEFORM_VERSION}` || !VERSION.test(policy.tsxVersion)
+  if (policy.packageSpec !== `${PACKAGE}@latest`
     || policy.registry !== 'https://registry.npmjs.org/') {
     throw new Error('Invalid Freeform MCP installation policy.');
-  }
-  const lockBytes = await fs.readFile(path.join(runtime, 'freeform-package-lock.json'));
-  const locked = JSON.parse(lockBytes);
-  const dependencies = { [PACKAGE]: FREEFORM_VERSION, tsx: policy.tsxVersion };
-  if (locked.lockfileVersion !== 3 || locked.name !== 'coohom-freeform-runtime'
-    || Object.keys(locked.packages?.['']?.dependencies ?? {}).length !== 2
-    || Object.entries(dependencies).some(([name, version]) =>
-      locked.packages?.['']?.dependencies?.[name] !== version
-      || locked.packages?.[`node_modules/${name}`]?.version !== version)) {
-    throw new Error('Freeform dependency lock does not match the installation policy.');
   }
   const node = nodeExecutable ?? path.join(plugin, 'runtime', 'node', process.platform === 'win32' ? 'node.exe' : 'bin/node');
   const npmCli = npmCliPath ?? path.join(plugin, 'runtime', 'node', 'npm', 'bin', 'npm-cli.js');
@@ -71,31 +63,28 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
     stage = await fs.mkdtemp(path.join(versions, 'install-'));
     cache = await fs.mkdtemp(path.join(os.tmpdir(), 'coohom-freeform-npm-'));
     await fs.writeFile(path.join(stage, 'package.json'), JSON.stringify({
-      name: 'coohom-freeform-runtime', version: '1.0.0', private: true, dependencies,
+      name: 'coohom-freeform-runtime', version: '1.0.0', private: true,
     }, null, 2) + '\n');
-    await fs.writeFile(path.join(stage, 'package-lock.json'), lockBytes);
     const childEnv = { ...env };
     for (const key of Object.keys(childEnv)) {
       if (['aholo_api_key', 'aholo_region', 'coohom_aholo_config', 'node_options', 'node_path'].includes(key.toLowerCase())) delete childEnv[key];
     }
-    writeLine(`Installing ${policy.packageSpec}. Access to npm is required.`);
-    await runNpm(node, [npmCli, 'ci',
-      '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
-      '--engine-strict', '--prefer-online', '--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000',
+    writeLine(`Installing ${packageSpec}. Access to npm is required.`);
+    await runNpm(node, [npmCli, 'install', packageSpec,
+      '--save-exact', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund',
+      '--engine-strict', '--prefer-online', '--fetch-retries=0', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--fetch-timeout=60000',
       `--registry=${policy.registry}`, `--cache=${cache}`], { cwd: stage, env: childEnv });
-    const { freeform, tsx } = await validateFreeformRuntime(stage, { version: FREEFORM_VERSION, tsxVersion: policy.tsxVersion });
+    const { freeform } = await validateFreeformRuntime(stage);
+    if (version !== 'latest' && freeform.version !== version) throw new Error('Installed MCP does not match the requested exact version.');
     const packageLock = JSON.parse(await fs.readFile(path.join(stage, 'package-lock.json'), 'utf8'));
-    for (const [name, version] of [[PACKAGE, freeform.version], ['tsx', tsx.version]]) {
+    for (const [name, version] of [[PACKAGE, freeform.version]]) {
       if (packageLock.packages?.[`node_modules/${name}`]?.version !== version
         || packageLock.packages?.['']?.dependencies?.[name] !== version) {
         throw new Error('The installed Freeform MCP version does not match the lockfile. The previous installation was preserved.');
       }
     }
-    if (!(await fs.readFile(path.join(stage, 'package-lock.json'))).equals(lockBytes)) {
-      throw new Error('Freeform dependency lock changed during installation. The previous installation was preserved.');
-    }
-    const installation = { packageSpec: policy.packageSpec, version: freeform.version,
-      directory: path.relative(runtime, stage).split(path.sep).join('/'), tsxVersion: tsx.version,
+    const installation = { packageSpec, version: freeform.version,
+      directory: path.relative(runtime, stage).split(path.sep).join('/'),
       installedAt: new Date().toISOString() };
     pointerTemporary = path.join(runtime, `.freeform-install-${path.basename(stage)}.json`);
     await fs.writeFile(pointerTemporary, JSON.stringify(installation, null, 2) + '\n');
@@ -114,11 +103,6 @@ export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, 
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  if (process.argv.length !== 3) {
-    process.stderr.write('Usage: node update-freeform.mjs <plugin-root>\n');
-    process.exitCode = 1;
-  } else {
-    try { await installFreeform({ pluginRoot: process.argv[2] }); }
-    catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }
-  }
+  process.stderr.write('Use manage-mcp.mjs <plugin-root> install|retry|versions to update both MCPs together.\n');
+  process.exitCode = 1;
 }

@@ -116,7 +116,7 @@ test('each installation resolves latest and records an exact installed version u
   assert.equal(observation.path, '');
   assert.deepEqual(observation.forwardedLegacyNames, []);
   assert.deepEqual(observation.args.slice(0, 3), ['install', packageSpec, '--save-exact']);
-  for (const flag of ['--fetch-retries=2', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--ignore-scripts', '--engine-strict', '--prefer-online', '--@manycore:registry=https://registry.npmjs.org/']) {
+  for (const flag of ['--fetch-retries=0', '--fetch-retry-mintimeout=1000', '--fetch-retry-maxtimeout=5000', '--ignore-scripts', '--engine-strict', '--prefer-online', '--@manycore:registry=https://registry.npmjs.org/']) {
     assert.ok(observation.args.includes(flag), `expected npm flag ${flag}`);
   }
   const lock = JSON.parse(await readFile(path.join(files.runtime, installed.directory, 'package-lock.json'), 'utf8'));
@@ -144,8 +144,8 @@ test('a second update fetches latest again, switches the pointer and retains the
 
 for (const [mode, message] of [
   ['download-failure', /Lux3D download failed \(E503\)/],
-  ['missing-bin', /no valid version or public CLI entry/],
-  ['escaping-bin', /CLI entry is outside the package directory/],
+  ['missing-bin', /unambiguous public CLI/],
+  ['escaping-bin', /CLI is outside its package/],
   ['mismatched-package-version', /version does not match the lockfile/],
   ['mismatched-root-version', /version does not match the lockfile/],
 ]) {

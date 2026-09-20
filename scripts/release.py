@@ -14,6 +14,7 @@ import sys
 import tempfile
 from urllib.parse import quote
 import zipfile
+from third_party import notice_files, normalized, verify_jszip
 
 TARGETS = {
     'windows-x64': ('win32', 'x64', 'Install.cmd', 'node.exe'),
@@ -109,28 +110,35 @@ def inspect_artifacts(input_dir: Path, source_dir: Path | None = None) -> tuple[
                         raise ValueError(f'Incomplete installer: missing {name}')
                 source_count = 0
                 if source_dir is not None:
-                    expected_names = {p.relative_to(source_dir).as_posix() for p in source_dir.rglob('*') if p.is_file()}
+                    expected_files = {p.relative_to(source_dir).as_posix(): p.read_bytes()
+                                      for p in source_dir.rglob('*') if p.is_file()}
+                    changelog = source_dir.parent / 'CHANGELOG.md'
+                    expected_files['CHANGELOG.md'] = changelog.read_bytes()
+                    notices = notice_files(source_dir.parent)
+                    expected_files.update(notices)
+                    if 'README.md' in expected_files:
+                        expected_files['README.md'] = expected_files['README.md'].replace(b'](../CHANGELOG.md)', b'](CHANGELOG.md)')
+                    expected_names = set(expected_files)
                     packed_names = {name[len(plugin_root):] for name in names if name.startswith(plugin_root)
                                     and not name.startswith(plugin_root + 'runtime/') and not name.endswith('/')}
                     if expected_names != packed_names:
                         raise ValueError(f'Package/source file set mismatch: {target}; extra={sorted(packed_names - expected_names)}, missing={sorted(expected_names - packed_names)}')
-                    for source in source_dir.rglob('*'):
-                        if not source.is_file():
-                            continue
-                        relative = source.relative_to(source_dir).as_posix()
+                    for relative, content in expected_files.items():
                         packed = archive.read(plugin_root + relative)
                         if relative == '.codex-plugin/plugin.json':
-                            expected = load_json(source)
+                            expected = json.loads(content)
                             expected.pop('mcpServers', None)
                             matches = json.loads(packed) == expected
                         else:
-                            matches = packed == source.read_bytes()
+                            matches = packed == content
                         if not matches:
                             raise ValueError(f'Package/source mismatch: {target}/{relative}')
                         source_count += 1
-                    changelog = source_dir / 'CHANGELOG.md'
-                    if changelog.is_file() and archive.read(root + 'CHANGELOG.md') != changelog.read_bytes():
+                    if archive.read(root + 'CHANGELOG.md') != changelog.read_bytes():
                         raise ValueError(f'Bundle-root changelog mismatch: {target}')
+                    for relative, content in notices.items():
+                        if normalized(archive.read(root + relative)) != content:
+                            raise ValueError(f'Bundle-root third-party notice mismatch: {target}/{relative}')
                 permissions_checked = False
                 if platform == 'darwin':
                     for name in (root + entrypoint, plugin_root + 'runtime/node/' + node):
@@ -175,7 +183,7 @@ def rebuild_index(directory: Path) -> None:
     releases.sort(key=lambda release: version_key(release['version']), reverse=True)
     index = {'schemaVersion': 1, 'latest': releases[0]['version'] if releases else None, 'releases': releases}
     lines = ['# Release downloads', '', 'Choose a version and platform below. Full versions match the bundled plugin; historical files are immutable.', '',
-             '[Full changelog](../../coohom-freeform/CHANGELOG.md)', '',
+             '[Full changelog](../../CHANGELOG.md)', '',
              '| Release | Full version / build time (UTC) | Release notes | Windows x64 | macOS ARM64 |',
              '|---|---|---|---|---|']
     for release in releases:
@@ -257,7 +265,7 @@ def notes_for_version(repo: Path, version: str) -> str:
     frozen = repo / 'dist/releases' / version / 'release.json'
     if frozen.is_file():
         return load_json(frozen)['notes']
-    changelog = repo / PLUGIN / 'CHANGELOG.md'
+    changelog = repo / 'CHANGELOG.md'
     if changelog.is_file():
         text = changelog.read_text(encoding='utf-8')
         pattern = r'^## ' + re.escape(version) + r'[^\n]*\n(.*?)(?=^## |\Z)'
@@ -293,7 +301,7 @@ def prepare_release(repo: Path, summaries: list[str], helper: Path) -> str:
         version = load_json(manifest_path)['version']
         if version_key(version)[:3] != (major, minor, patch + 1):
             raise ValueError('Cachebuster helper returned an unexpected release version.')
-        changelog_path = source / 'CHANGELOG.md'
+        changelog_path = repo / 'CHANGELOG.md'
         old = changelog_path.read_text(encoding='utf-8') if changelog_path.exists() else '# Changelog\n\n'
         first = re.search(r'^## ', old, re.MULTILINE)
         entry = f'## {version} — {datetime.now(timezone.utc).date().isoformat()}\n\n' + ''.join(f'- {summary}\n' for summary in summaries) + '\n'
@@ -321,10 +329,15 @@ def repack_artifact(repo: Path, target: str, template_info: dict, output_dir: Pa
                 raise ValueError('Runtime source changes require a full platform build, then publish without --repack.')
             replacements[plugin_root + relative] = path.read_bytes()
     replacements[plugin_root + '.codex-plugin/plugin.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
+    replacements[plugin_root + 'CHANGELOG.md'] = (repo / 'CHANGELOG.md').read_bytes()
+    for relative, content in notice_files(repo).items():
+        replacements[plugin_root + relative] = content
+        replacements[root + relative] = content
+    replacements[plugin_root + 'README.md'] = replacements[plugin_root + 'README.md'].replace(b'](../CHANGELOG.md)', b'](CHANGELOG.md)')
     for filename in ('README.md', 'CHANGELOG.md', 'LICENSE'):
         if filename == 'LICENSE' and not (source / filename).is_file():
             continue
-        replacements[root + filename] = (source / filename).read_bytes()
+        replacements[root + filename] = replacements[plugin_root + filename]
     output = output_dir / f'{PLUGIN}-{target}.zip'
     with zipfile.ZipFile(template_info['path']) as template:
         bundle = json.loads(template.read(root + 'bundle.json'))
@@ -412,12 +425,15 @@ def promote_latest(repo: Path, candidates: Path) -> None:
                 temporary.unlink(missing_ok=True)
 
 
-def publish_current(repo: Path, repack: bool = False) -> Path:
+def publish_current(repo: Path, repack: bool = False, freeform_runtime: Path | None = None) -> Path:
+    license_review = verify_jszip(repo, freeform_runtime)
     source = repo / PLUGIN
     current = load_json(source / '.codex-plugin/plugin.json')['version']
     version_key(current)
     notes = notes_for_version(repo, current)
     frozen = repo / 'dist/releases' / current
+    if frozen.is_dir() and not load_json(frozen / 'release.json').get('provenance', {}).get('jszipLicenseReview'):
+        raise ValueError('Archived release lacks JSZip verification; preserve its history and prepare a new version.')
     if repack:
         with tempfile.TemporaryDirectory(prefix='.publish-', dir=repo / 'dist') as temporary:
             candidates = Path(temporary).resolve()
@@ -435,14 +451,16 @@ def publish_current(repo: Path, repack: bool = False) -> Path:
             if version != current:
                 raise ValueError('Candidate packages do not match the source version.')
             record_validation(candidates, version, artifacts)
-            snapshot = archive_release(repo, candidates, notes, source)
+            snapshot = archive_release(repo, candidates, notes, source,
+                                       provenance={'jszipLicenseReview': license_review})
             promote_latest(repo, candidates)
             return snapshot
     version, artifacts = inspect_artifacts(repo / 'dist', source)
     if version != current:
         raise ValueError('Current source and built packages have different versions.')
     record_validation(repo / 'dist', version, artifacts)
-    return archive_release(repo, repo / 'dist', notes, source)
+    return archive_release(repo, repo / 'dist', notes, source,
+                           provenance={'jszipLicenseReview': license_review})
 
 
 def main() -> None:
@@ -454,6 +472,8 @@ def main() -> None:
     prepare.add_argument('--helper', type=Path, default=Path.home() / '.codex/skills/.system/plugin-creator/scripts/update_plugin_cachebuster.py')
     publish = commands.add_parser('publish', help='Verify and archive the complete current release locally.')
     publish.add_argument('--repack', action='store_true', help='Refresh static plugin source and docs using the current ZIPs as runtime/installer templates.')
+    publish.add_argument('--freeform-runtime', type=Path, required=True,
+                         help='Installed Freeform directory containing package-lock.json and node_modules, for release-only JSZip verification.')
     archive = commands.add_parser('archive', help='Retain existing historical packages without changing their bytes.')
     archive.add_argument('--input', type=Path, required=True)
     archive.add_argument('--notes', type=Path, required=True)
@@ -464,7 +484,7 @@ def main() -> None:
         if args.command == 'prepare':
             print(prepare_release(repo, args.summary, args.helper.resolve()))
         elif args.command == 'publish':
-            print(publish_current(repo, args.repack))
+            print(publish_current(repo, args.repack, args.freeform_runtime))
         else:
             provenance = load_json(args.provenance) if args.provenance else None
             print(archive_release(repo, args.input, args.notes.read_text(encoding='utf-8'), provenance=provenance))

@@ -17,7 +17,7 @@ async function fixture(t) {
   await fs.mkdir(path.join(sourceRoot, 'scripts/mcp'), { recursive: true });
   await fs.writeFile(path.join(sourceRoot, '.codex-plugin/plugin.json'), JSON.stringify({ name: 'coohom-freeform', version: '0.1.6+codex.20260917000000' }));
   await fs.copyFile(path.join(here, 'marketplace/marketplace.mjs'), path.join(sourceRoot, 'scripts/marketplace.mjs'));
-  for (const name of RUNTIME_FILES) await fs.writeFile(path.join(sourceRoot, 'scripts/mcp', name), '{}');
+  for (const name of RUNTIME_FILES) await fs.copyFile(path.join(here, name), path.join(sourceRoot, 'scripts/mcp', name));
   const attempts = path.join(directory, 'attempts.txt');
   const fail = path.join(directory, 'fail');
   for (const [service, symbol] of [['freeform', 'installFreeform'], ['lux3d', 'installLux3d']]) {
@@ -28,7 +28,9 @@ export async function ${symbol}(options) {
   await fs.appendFile(${JSON.stringify(attempts)}, '${service}\\n');
   await new Promise(resolve => setTimeout(resolve, 250));
   if (await fs.access(${JSON.stringify(fail)}).then(() => true, () => false)) throw new Error('fixture download failure');
-  await fs.writeFile(path.join(options.pluginRoot, 'runtime/mcp/${service}-install.json'), JSON.stringify({version:'1.0.0', node:options.nodeExecutable, npm:options.npmCliPath}));
+  const record = {version:'1.0.0', packageSpec:'${service === 'freeform' ? 'freeform-modeling-mcp' : '@manycore/coohom-lux3d-mcp'}@latest', directory:'${service}/install-fixture', node:options.nodeExecutable, npm:options.npmCliPath};
+  await fs.mkdir(path.join(options.pluginRoot, 'runtime/mcp', record.directory), {recursive:true});
+  return record;
 }
 `);
   }
@@ -40,38 +42,35 @@ test('concurrent cold starts install once and warm starts preserve the runtime w
   const options = { ...f, service: 'freeform' };
   const paths = await Promise.all([prepareRuntime(options), prepareRuntime(options), prepareRuntime(options)]);
   assert.equal(new Set(paths).size, 1);
-  assert.equal(await fs.readFile(f.attempts, 'utf8'), 'freeform\n');
+  assert.equal(await fs.readFile(f.attempts, 'utf8'), 'freeform\nlux3d\n');
   await fs.writeFile(f.fail, 'would fail if npm ran again');
   assert.equal(await prepareRuntime(options), paths[0]);
-  const record = JSON.parse(await fs.readFile(path.join(paths[0], 'runtime/mcp/freeform-install.json'), 'utf8'));
+  const record = JSON.parse(await fs.readFile(path.join(paths[0], 'runtime/mcp/mcp-pair.json'), 'utf8')).freeform;
   assert.equal(record.node, process.execPath);
   assert.equal(record.npm, f.npmCliPath);
-  assert.equal(await fs.readFile(f.attempts, 'utf8'), 'freeform\n');
-  assert.deepEqual((await fs.readdir(path.dirname(paths[0]))).sort(), ['freeform']);
+  assert.equal(await fs.readFile(f.attempts, 'utf8'), 'freeform\nlux3d\n');
+  assert.deepEqual((await fs.readdir(path.dirname(paths[0]))).sort(), ['pair']);
 });
 
-test('failed preparation publishes no runtime and a later retry succeeds', async t => {
+test('failed preparation persists and only explicit retry may download again', async t => {
   const f = await fixture(t);
   await fs.writeFile(f.fail, 'fail');
-  await assert.rejects(prepareRuntime({ ...f, service: 'lux3d' }), /fixture download failure/);
-  const [revision] = await fs.readdir(path.join(f.cacheRoot, 'plugins'));
-  assert.deepEqual(await fs.readdir(path.join(f.cacheRoot, 'plugins', revision)), []);
+  await assert.rejects(prepareRuntime({...f,service:'lux3d'}), /fixture download failure/);
   await fs.unlink(f.fail);
-  const destination = await prepareRuntime({ ...f, service: 'lux3d' });
-  assert.equal(JSON.parse(await fs.readFile(path.join(destination, '.ready.json'), 'utf8')).service, 'lux3d');
-  assert.equal(await fs.readFile(f.attempts, 'utf8'), 'lux3d\nlux3d\n');
+  await assert.rejects(prepareRuntime({...f,service:'freeform'}), /Ask the user to retry/);
+  assert.equal(await fs.readFile(f.attempts,'utf8'),'freeform\n');
+  const destination=await prepareRuntime({...f,service:'lux3d',action:'retry'});
+  assert.equal(JSON.parse(await fs.readFile(path.join(destination,'runtime/mcp/mcp-pair.json'),'utf8')).validation,'installed');
 });
-
-test('services and changed runtime sources use independent immutable installations', async t => {
-  const f = await fixture(t);
-  const first = await prepareRuntime({ ...f, service: 'freeform' });
-  const lux = await prepareRuntime({ ...f, service: 'lux3d' });
-  assert.notEqual(first, lux);
-  await fs.writeFile(path.join(f.sourceRoot, 'scripts/mcp/freeform-policy.json'), '{"changed":true}');
-  const next = await prepareRuntime({ ...f, service: 'freeform' });
-  assert.notEqual(first, next);
-  await fs.access(path.join(first, '.ready.json'));
-  assert.equal(await fs.readFile(f.attempts, 'utf8'), 'freeform\nlux3d\nfreeform\n');
+test('both services share a pair and prose-only plugin versions do not reinstall dependencies', async t=>{
+  const f=await fixture(t);
+  const first=await prepareRuntime({...f,service:'freeform'});
+  await fs.writeFile(path.join(f.sourceRoot,'.codex-plugin/plugin.json'),JSON.stringify({name:'coohom-freeform',version:'9.0.0'}));
+  assert.equal(await prepareRuntime({...f,service:'lux3d'}),first);
+  assert.equal(await fs.readFile(f.attempts,'utf8'),'freeform\nlux3d\n');
+  await fs.writeFile(path.join(f.sourceRoot,'scripts/mcp/freeform-policy.json'),'{"changed":true}');
+  assert.notEqual(await prepareRuntime({...f,service:'freeform'}),first);
+  await fs.access(path.join(first,'runtime/mcp/mcp-pair.json'));
 });
 
 test('unsupported service is rejected before creating any cache', async t => {

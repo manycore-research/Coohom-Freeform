@@ -16,13 +16,16 @@ import urllib.request
 import zipfile
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / 'scripts'))
+from third_party import notice_files
+
 SOURCE = HERE.parent / "coohom-freeform"
 NODE_VERSION = "22.23.2"
 MARKETPLACE = "coohom-freeform-local"
-MCP_RUNTIME_FILES = ("launch-mcp.mjs", "launch-lux3d.mjs",
-                     "update-freeform.mjs", "freeform-policy.json", "freeform-package-lock.json",
+MCP_RUNTIME_FILES = ("runtime-contract.mjs", "manage-mcp.mjs", "launch-mcp.mjs", "launch-lux3d.mjs",
+                     "update-freeform.mjs", "freeform-policy.json",
                      "update-lux3d.mjs", "lux3d-policy.json")
-INSTALL_HELPERS = ("update-freeform.mjs", "update-lux3d.mjs", "launch-mcp.mjs")
+INSTALL_HELPERS = ("runtime-contract.mjs", "manage-mcp.mjs", "update-freeform.mjs", "update-lux3d.mjs", "launch-mcp.mjs")
 PLATFORMS = {
     "win32-x64": ("win", "x64", "zip", "windows-x64"),
     "darwin-arm64": ("darwin", "arm64", "tar.gz", "macos-arm64"),
@@ -188,6 +191,13 @@ def build(target: str, node: str, npm_cli: str, scaffold: str, offline: bool = F
          "--marketplace-name", MARKETPLACE, "--with-marketplace"])
     plugin = market / "plugins/coohom-freeform"
     shutil.copytree(SOURCE, plugin, dirs_exist_ok=True)
+    shutil.copy2(HERE.parent / "CHANGELOG.md", plugin / "CHANGELOG.md")
+    for relative, contents in notice_files(HERE.parent).items():
+        for destination in (root / relative, plugin / relative):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(contents)
+    readme = (plugin / "README.md").read_bytes().replace(b'](../CHANGELOG.md)', b'](CHANGELOG.md)')
+    (plugin / "README.md").write_bytes(readme)
     # The installer creates the actual MCP configuration after choosing a stable path.
     manifest = json.loads((plugin / ".codex-plugin/plugin.json").read_text(encoding="utf-8"))
     manifest.pop("mcpServers", None)
@@ -216,23 +226,9 @@ def build(target: str, node: str, npm_cli: str, scaffold: str, offline: bool = F
         "marketplaceName": MARKETPLACE, "pluginName": "coohom-freeform",
     }, indent=2) + "\n", encoding="utf-8")
     write_entrypoints(root, target)
-    shutil.copy2(SOURCE / "README.md", root / "README.md")
-    shutil.copy2(SOURCE / "CHANGELOG.md", root / "CHANGELOG.md")
+    shutil.copy2(plugin / "README.md", root / "README.md")
+    shutil.copy2(HERE.parent / "CHANGELOG.md", root / "CHANGELOG.md")
     shutil.copy2(SOURCE / "LICENSE", root / "LICENSE")
-    (root / "THIRD_PARTY.md").write_text(
-        "# Bundled runtime notices\n\nNode.js " + NODE_VERSION + ": official binary and npm are included in "
-        "marketplace/plugins/coohom-freeform/runtime/node. Node license and official archive checksums "
-        "are preserved there; npm package metadata, dependencies and license files are in runtime/node/npm.\n\n"
-        "freeform-modeling-mcp and @manycore/coohom-lux3d-mcp are fetched when the user installs or updates the plugin, "
-        "using runtime/mcp/freeform-policy.json and runtime/mcp/lux3d-policy.json. They are not preinstalled in this archive. "
-        "runtime/mcp/freeform-install.json and runtime/mcp/lux3d-install.json record the resulting versions and installation directories. "
-        "Freeform uses npm ci with the shipped runtime/mcp/freeform-package-lock.json, fixing its complete dependency tree. "
-        "Each MCP's independent package-lock.json records exact dependency versions and npm integrity hashes; "
-        "tsx and its dependencies are recorded in the freeform installation's lockfile. "
-        "Original downloaded package metadata and license files are preserved.\n\n"
-        "Node/npm require no global installation or global npm configuration changes. "
-        "Installing or updating the MCPs requires network access even when this base archive was built with --offline.\n",
-        encoding="utf-8")
     dist = HERE.parent / "dist"
     dist.mkdir(exist_ok=True)
     output = dist / f"{root.name}.zip"

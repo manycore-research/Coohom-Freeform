@@ -4,14 +4,14 @@ The marketplace supports Windows x64 and macOS ARM64. Node/npm are downloaded au
 
 ## Install
 
-The public repository is [manycore-research/Coohom-Freeform](https://github.com/manycore-research/Coohom-Freeform). The commands below use its default branch. This is a source preview with test-environment limitations; see [release status](releasing.md). For installation through a Codex prompt, follow [INSTALL.md](../INSTALL.md).
+The public repository is [manycore-research/Coohom-Freeform](https://github.com/manycore-research/Coohom-Freeform). The commands below use its default branch. Executor access depends on the configured environment and your account permissions; see [release status](releasing.md) for version, distribution and validation details. For installation through a Codex prompt, follow [INSTALL.md](../INSTALL.md).
 
 ```sh
 codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-Restart Codex and open a new task. First startup can take several minutes while Node and both MCP dependencies are prepared. npm retries transient download failures up to twice, with a 300-second installation limit per MCP. Later startups reuse the recorded local versions and do not run npm. Startup diagnostics go to the MCP server's stderr log; generation does not start during installation. Plugin registration alone does not mean both MCPs are ready; wait for both to load before use. Coohom sign-in, credits and browser requirements are the same as for ZIP installations.
+Restart Codex and open a new task. First startup can take several minutes while Node and both MCP dependencies are prepared. Each MCP installation has a 300-second limit. Failed installation waits for an explicit user choice rather than retrying or falling back automatically. Later startups reuse the recorded local versions and do not run npm. Startup diagnostics go to the MCP server's stderr log; generation does not start during installation. Plugin registration alone does not mean both MCPs are ready; wait for both to load before use. Coohom sign-in, credits and browser requirements are the same as for ZIP installations.
 
 ## Existing installation
 
@@ -23,11 +23,24 @@ Before adding this plugin, run `codex plugin list`. Keep only one enabled Coohom
 - macOS: `~/Library/Caches/Coohom/Freeform/marketplace`
 - Optional override: set `COOHOM_FREEFORM_CACHE` in the environment that starts Codex. Restart Codex after changing it. The plugin explicitly forwards this variable to both MCPs.
 
-`node/` holds official Node distributions and their pinned archive SHA256 markers. `plugins/` holds immutable dependency installations separated by plugin version, runtime source fingerprint, operating system and architecture. A complete new installation is published atomically; failure does not mark a partial directory ready. Concurrent starts of the same MCP share a preparation lock. Windows Node locks release automatically when the owner exits; shell/MCP preparation locks left by a forced termination require manual recovery.
+`node/` holds official Node distributions and their pinned archive SHA256 markers. `plugins/` holds immutable dependency installations separated by runtime source fingerprint, Node runtime, operating system and architecture; prose-only plugin version changes reuse the pair. A complete new installation is published atomically; failure does not mark a partial directory ready. Both MCPs share one pair preparation lock and activate together. Windows Node locks release automatically when the owner exits; shell/MCP preparation locks left by a forced termination require manual recovery.
 
-If a download fails, correct network access and retry startup. If logs report a stale lock or corrupted cache, stop all Coohom tasks and exit Codex first; confirm no Coohom preparation/MCP process is still using this cache, then remove only the affected plugin-owned cache directory and restart. Node is fetched again only when its cache is removed. Do not clear all Codex data, user scenes or other plugins. Uninstalling the plugin does not automatically delete this external cache.
+After failure, inspect status and choose retry or stop. Only after that retry fails should another explicit pair be considered. Do not clear failure state to bypass this decision. A stale lock requires checking its owner/process before removing that exact lock. Uninstalling the plugin does not remove this external cache.
 
-The 0.1.0 release temporarily pins Freeform to `freeform-modeling-mcp@1.0.34` because the newer public CLI entry requires adapter changes. Lux3D retains `@manycore/coohom-lux3d-mcp@latest`. A new plugin/runtime revision prepares these dependencies again; a successful installation records exact versions and lockfiles. Freeform and its complete dependency tree are installed with `npm ci` from the shipped `freeform-package-lock.json`; the 300-second installation limit and two download retries are unchanged. Lux3D can still differ across first installations on different dates.
+Run these from the installed plugin source, using `scripts/bootstrap.cmd` on Windows:
+
+```sh
+scripts/bootstrap freeform status
+scripts/bootstrap freeform install
+# Only after the user chooses retry:
+scripts/bootstrap freeform retry
+# Only after retry fails and the user chooses both exact versions:
+scripts/bootstrap freeform versions <freeform-exact> <lux3d-exact>
+```
+
+These commands manage both MCPs as a pair. Installation/explicit upgrade defaults to both public npm latest versions. Ordinary startup never checks for newer packages. The launcher starts each package's declared public CLI and provides bundled Node/npm/npx. Upstream dependencies come from the package's own manifest and lockfile.
+
+Installation, MCP initialization, task-required contract matching and real scene acceptance are separate validation levels. A retained historical pair is not automatically compatible. Stop active work before a chosen restart; do not switch dependencies mid-generation or during scene writes.
 
 ## Maintainers
 

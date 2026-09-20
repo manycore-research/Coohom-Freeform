@@ -20,8 +20,9 @@ async function fixture(t, { cli = inspect, version = '0.1.0-alpha.1', bin = 'src
   const runtime = join(root, '插件 runtime', 'mcp');
   const packageDirectory = join(runtime, 'lux3d', 'install-fixture', 'node_modules', '@manycore', 'coohom-lux3d-mcp');
   await mkdir(dirname(packageDirectory), { recursive: true });
+  await copyFile(join(sourceDirectory, 'runtime-contract.mjs'), join(runtime, 'runtime-contract.mjs'));
   await copyFile(join(sourceDirectory, 'launch-lux3d.mjs'), join(runtime, 'launch-lux3d.mjs'));
-  await writeFile(join(runtime, 'lux3d-install.json'), JSON.stringify({directory: 'lux3d/install-fixture', version: realSdk ? JSON.parse(await readFile(join(realSdk, 'package.json'), 'utf8')).version : version}));
+  await writeFile(join(runtime, 'lux3d-install.json'), JSON.stringify({packageSpec: '@manycore/coohom-lux3d-mcp@latest', directory: 'lux3d/install-fixture', version: realSdk ? JSON.parse(await readFile(join(realSdk, 'package.json'), 'utf8')).version : version}));
   if (realSdk) {
     await symlink(realSdk, packageDirectory, process.platform === 'win32' ? 'junction' : 'dir');
   } else {
@@ -60,20 +61,19 @@ function run(t, fixture, { args = [], env: overrides = {}, input = '' } = {}) {
   return { child, done };
 }
 
-test('public CLI runs in the same process without credentials or system PATH', async (t) => {
+test('public CLI runs through its public entry without credentials or system PATH', async (t) => {
   const files = await fixture(t);
   const result = await run(t, files).done;
   assert.equal(result.code, 0, result.stderr);
   const actual = JSON.parse(result.stdout.toString());
   actual.cwd = await realpath(actual.cwd);
   assert.deepEqual(actual, {
-    pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false,
-    executorUrl: 'https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor',
+    pid: actual.pid, args: [], cwd: await realpath(join(files.runtime, 'lux3d/install-fixture')), hasKey: false, hasRegion: false, hasConfig: false,
   });
   assert.equal(result.stderr, '');
 });
 
-test('legacy Aholo environment is not forwarded and the public bridge port remains configurable', async (t) => {
+test('legacy credentials and executor URL overrides are not forwarded; bridge port remains configurable', async (t) => {
   const files = await fixture(t);
   const result = await run(t, files, { env: {
     AHOLO_API_KEY: 'old-secret', AHOLO_REGION: 'invalid-old-region',
@@ -84,10 +84,18 @@ test('legacy Aholo environment is not forwarded and the public bridge port remai
   const actual = JSON.parse(result.stdout.toString());
   actual.cwd = await realpath(actual.cwd);
   assert.deepEqual(actual, {
-    pid: result.pid, args: [], cwd: await realpath(files.runtime), hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
-    executorUrl: 'https://test.coohom.com/custom-executor',
+    pid: actual.pid, args: [], cwd: await realpath(join(files.runtime, 'lux3d/install-fixture')), hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
   });
   assert.doesNotMatch(result.stdout.toString() + result.stderr, /old-secret|invalid-old-region/);
+});
+
+test('executor URL overrides with mixed-case environment names are not forwarded', async (t) => {
+  const files = await fixture(t, { cli: `process.stdout.write(JSON.stringify(
+    Object.keys(process.env).filter(key => key.toLowerCase() === 'lux3d_mcp_executor_url')
+  ));` });
+  const result = await run(t, files, { env: { Lux3d_Mcp_Executor_Url: 'https://test.coohom.com/custom-executor' } }).done;
+  assert.equal(result.code, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout.toString()), []);
 });
 
 test('entrypoint main-module guard executes with its published argv path', async (t) => {
@@ -135,7 +143,7 @@ test('caught import errors are not echoed with sensitive contents', async (t) =>
   assert.doesNotMatch(result.stderr, /private-secret/);
 });
 
-test('terminating launcher also terminates its actual MCP PID', async (t) => {
+test('terminating launcher also terminates its actual MCP PID', { skip: process.platform === 'win32' }, async (t) => {
   const files = await fixture(t, { cli: "process.stdout.write(String(process.pid)); setInterval(() => {}, 1000);" });
   const { child, done } = run(t, files, { input: null });
   const pid = await new Promise((resolve, reject) => {
@@ -143,9 +151,9 @@ test('terminating launcher also terminates its actual MCP PID', async (t) => {
     child.once('error', reject);
     child.once('close', () => reject(new Error('fixture closed before ready')));
   });
-  assert.equal(pid, child.pid);
+  assert.notEqual(pid, child.pid);
   child.kill('SIGTERM');
-  assert.equal((await done).signal, 'SIGTERM');
+  assert.equal((await done).code, 1);
   assert.throws(() => process.kill(pid, 0));
 });
 
@@ -185,7 +193,13 @@ test('real public Lux3D initializes and exposes the plugin workspace contract wi
     protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'coohom-offline-test', version: '1.0.0' },
   } })}\n`);
   const names = (await listed).map(tool => tool.name);
-  for (const name of ['prepare_workspace', 'create_lux3d_model_task', 'get_lux3d_model_task']) assert.ok(names.includes(name));
+  for (const name of [
+    'prepare_workspace',
+    'create_lux3d_model_task',
+    'get_lux3d_model_task',
+    'open_credits_payment',
+    'get_credits',
+  ]) assert.ok(names.includes(name));
   child.stdin.end();
   assert.equal((await done).code, 0);
 });

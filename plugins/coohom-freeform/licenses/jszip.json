@@ -1,0 +1,12 @@
+{
+  "name": "jszip",
+  "version": "3.10.2",
+  "licenseDeclared": "(MIT OR GPL-3.0-or-later)",
+  "licenseConcluded": "MIT",
+  "source": "https://github.com/Stuk/jszip/tree/v3.10.2",
+  "upstreamLicenseUrl": "https://raw.githubusercontent.com/Stuk/jszip/v3.10.2/LICENSE.markdown",
+  "packageUrl": "https://registry.npmjs.org/jszip/-/jszip-3.10.2.tgz",
+  "packageIntegrity": "sha512-3l+rb15IOWtUhU0H5MFqES/T6Kh7abYwjosBey/vD6hDt8zoEffkSC5Ws5SGtgVw3gBx2NEbhTeSW1+kWkpyTQ==",
+  "upstreamLicenseSha256": "566c953c6090b1218ca6217dd7359d45dde46581968586dc607d59a78af6a9c4",
+  "noticeSha256": "0104796021ef9c27efaad16e8b83b380433635e7772d2ba144bc2217cb005f07"
+}

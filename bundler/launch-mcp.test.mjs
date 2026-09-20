@@ -1,213 +1,74 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { dirname, join, resolve, basename } from 'node:path';
+import * as fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-
-const launcherSource = join(dirname(fileURLToPath(import.meta.url)), 'launch-mcp.mjs');
-const publicWrapper = `throw new Error('npx wrapper must not execute');
-const path = require('path');
-const cliPath = path.resolve(__dirname, './src/cli.ts');
-const args = process.argv.slice(2);
-const result = spawnSync('npx', ['tsx', cliPath, ...args], { stdio: 'inherit' });`;
-const describeInvocation = `
-if (!globalThis.fixtureLoaderReady) throw new Error('tsx public loader was not loaded');
-process.stdout.write(JSON.stringify({
-  args: process.argv.slice(2), pid: process.pid,
-  execPath: process.execPath, cwd: process.cwd()
-}));`;
-
-async function fixture(t, { cli = describeInvocation, version = '1.0.34', tsxVersion = '4.23.13',
-  recordedVersion = version, recordedTsxVersion = tsxVersion, realTsx, wrapper = publicWrapper } = {}) {
-  const parent = await realpath(tmpdir());
-  const root = await mkdtemp(join(parent, 'coohom-freeform-launch-test-'));
-  t.after(async () => {
-    assert.equal(dirname(resolve(root)), parent);
-    assert.ok(basename(root).startsWith('coohom-freeform-launch-test-'));
-    assert.equal(await realpath(root), root);
-    await rm(root, { recursive: true, force: true });
-  });
-  const runtime = join(root, '插件 runtime', 'mcp');
-  const installation = join(runtime, 'freeform', 'install-fixture');
-  const freeform = join(installation, 'node_modules', 'freeform-modeling-mcp');
-  const tsx = join(installation, 'node_modules', 'tsx');
-  await mkdir(join(freeform, 'src'), { recursive: true });
-  await copyFile(launcherSource, join(runtime, 'launch-mcp.mjs'));
-  const pointer = join(runtime, 'freeform-install.json');
-  await writeFile(pointer, JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34',
-    version: recordedVersion, tsxVersion: recordedTsxVersion, directory: 'freeform/install-fixture',
-    installedAt: new Date().toISOString() }));
-  await writeFile(join(freeform, 'package.json'), JSON.stringify({
-    name: 'freeform-modeling-mcp', version, type: 'module', bin: { 'freeform-modeling-mcp': 'index.cjs' },
-  }));
-  await writeFile(join(freeform, 'index.cjs'), wrapper);
-  await writeFile(join(freeform, 'src', 'cli.ts'), cli);
-  if (realTsx) {
-    await symlink(realTsx, tsx, process.platform === 'win32' ? 'junction' : 'dir');
-  } else {
-    await mkdir(join(tsx, 'dist'), { recursive: true });
-    await writeFile(join(tsx, 'package.json'), JSON.stringify({
-      name: 'tsx', version: tsxVersion, type: 'module', bin: './dist/cli.mjs',
-      exports: { '.': './dist/loader.mjs', './package.json': './package.json' },
-    }));
-    await writeFile(join(tsx, 'dist', 'cli.mjs'), "throw new Error('tsx spawning CLI must not run');\n");
-    await writeFile(join(tsx, 'dist', 'loader.mjs'), `
-import { registerHooks } from 'node:module';
-import { readFileSync } from 'node:fs';
-globalThis.fixtureLoaderReady = true;
-registerHooks({ load(url, context, nextLoad) {
-  if (url.endsWith('/cli.ts')) {
-    return { format: 'module', source: readFileSync(new URL(url), 'utf8'), shortCircuit: true };
-  }
-  return nextLoad(url, context);
-} });`);
-  }
-  return { root, runtime, installation, freeform, tsx, pointer, launcher: join(runtime, 'launch-mcp.mjs') };
+const here = path.dirname(fileURLToPath(import.meta.url));
+async function fixture(t, { bin = 'different-entry.cjs', version = '9.4.0', cli = "process.stdout.write(JSON.stringify({args:process.argv.slice(2),cwd:process.cwd(),offline:process.env.npm_config_offline}));" } = {}) {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'coohom public 中文 '));
+  t.after(() => fs.rm(root, {recursive:true,force:true}));
+  const runtime = path.join(root, 'runtime/mcp');
+  const installation = path.join(runtime, 'freeform/install-fixture');
+  const pkg = path.join(installation, 'node_modules/freeform-modeling-mcp');
+  await fs.mkdir(pkg,{recursive:true});
+  for (const name of ['launch-mcp.mjs','runtime-contract.mjs']) await fs.copyFile(path.join(here,name),path.join(runtime,name));
+  const npm = path.join(root, 'runtime/node/npm/bin');
+  await fs.mkdir(npm,{recursive:true});
+  await fs.writeFile(path.join(npm,'npm-cli.js'),'');
+  await fs.writeFile(path.join(npm,'npx-cli.js'),"process.stdout.write(JSON.stringify({args:process.argv.slice(2),cwd:process.cwd(),offline:process.env.npm_config_offline}));");
+  await fs.writeFile(path.join(pkg,'package.json'),JSON.stringify({name:'freeform-modeling-mcp',version,bin}));
+  if (bin && !bin.startsWith('..')) await fs.writeFile(path.join(pkg,bin),cli);
+  const record = {packageSpec:'freeform-modeling-mcp@latest',version,directory:'freeform/install-fixture'};
+  const pointer = path.join(runtime,'freeform-install.json');
+  await fs.writeFile(pointer,JSON.stringify(record));
+  return {root,runtime,installation,pointer,record};
 }
-
-function run(t, fixture, args = [], input = '') {
-  const env = { ...process.env };
-  for (const name of Object.keys(env)) {
-    if (['path', 'node_options', 'node_path'].includes(name.toLowerCase())) delete env[name];
-  }
-  env.PATH = '';
-  const child = spawn(process.execPath, [fixture.launcher, ...args], {
-    cwd: fixture.root, env, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
-  });
-  const stdout = [];
-  const stderr = [];
-  child.stdout.on('data', chunk => stdout.push(chunk));
-  child.stderr.on('data', chunk => stderr.push(chunk));
-  const timer = setTimeout(() => child.kill(), 15_000);
-  t.after(() => { clearTimeout(timer); if (child.exitCode === null && child.signalCode === null) child.kill(); });
-  const done = new Promise((resolvePromise, reject) => {
-    child.once('error', reject);
-    child.once('close', (code, signal) => {
-      clearTimeout(timer);
-      resolvePromise({ code, signal, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr).toString('utf8'), pid: child.pid });
-    });
-  });
-  if (input !== null) child.stdin.end(input);
-  return { child, done };
-}
-
-for (const [args, expected] of [
-  [[], ['start', '--stdio']], [['start', '--stdio'], ['start', '--stdio']],
-  [['status'], ['status']], [['port', '--url'], ['port', '--url']],
-]) {
-  test(`public command ${args.join(' ') || '(default)'} runs in the same process without PATH or npm`, async (t) => {
-    const files = await fixture(t);
-    const pointer = await readFile(files.pointer);
-    const result = await run(t, files, args).done;
-    assert.equal(result.code, 0, result.stderr);
-    assert.equal(result.stderr, '');
-    assert.deepEqual(JSON.parse(result.stdout.toString()), {
-      args: expected, pid: result.pid, execPath: process.execPath, cwd: files.runtime,
-    });
-    assert.deepEqual(await readFile(files.pointer), pointer);
+function run(f,args=[],input='') {
+  return new Promise((resolve,reject)=>{
+    const env = {...process.env};
+    for (const k of Object.keys(env)) if (['path','node_options','node_path'].includes(k.toLowerCase())) delete env[k];
+    env.PATH='';
+    const child=spawn(process.execPath,[path.join(f.runtime,'launch-mcp.mjs'),...args],{env,windowsHide:true,stdio:['pipe','pipe','pipe']});
+    const stdout=[],stderr=[];
+    child.stdout.on('data',c=>stdout.push(c));child.stderr.on('data',c=>stderr.push(c));
+    const timeout=setTimeout(()=>child.kill(),10000);
+    child.once('error',reject);child.once('close',code=>{clearTimeout(timeout);resolve({code,stdout:Buffer.concat(stdout),stderr:Buffer.concat(stderr).toString()});});
+    child.stdin.end(input);
   });
 }
-
-test('an installation outside the pinned version is rejected before execution', async (t) => {
-  const files = await fixture(t, { version: '1.0.35-rc.1', cli: "throw new Error('must-not-run');" });
-  const result = await run(t, files).done;
-  assert.equal(result.code, 1);
-  assert.match(result.stderr, /installation record is invalid/);
-  assert.doesNotMatch(result.stderr, /must-not-run/);
+for (const args of [[],['start','--stdio'],['status'],['port','--url']]) test(`public bin preserves command ${args}`,async t=>{
+  const f=await fixture(t);const out=await run(f,args);
+  assert.equal(out.code,0,out.stderr);
+  assert.deepEqual(JSON.parse(out.stdout),{args:args.length?args:['start','--stdio'],cwd:f.installation,offline:'true'});
+  assert.equal(out.stderr,'');
 });
-
-test('stdio preserves binary bytes without launcher output', async (t) => {
-  const files = await fixture(t, { cli: 'process.stdin.pipe(process.stdout);\n' });
-  const input = Buffer.from([0, 1, 10, 13, 34, 123, 125, 128, 255]);
-  const result = await run(t, files, [], input).done;
-  assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(result.stdout, input);
-  assert.equal(result.stderr, '');
+test('changed wrapper can invoke bundled npx with no global Node and no network',async t=>{
+  const f=await fixture(t,{cli:`const {spawnSync}=require('node:child_process');
+const result=spawnSync(process.platform==='win32'?'npx.cmd':'npx',['tsx','any-public-path','--stdio'],{stdio:'inherit',shell:process.platform==='win32'});process.exit(result.status??1);`});
+  const out=await run(f);assert.equal(out.code,0,out.stderr);
+  assert.deepEqual(JSON.parse(out.stdout).args,['tsx','any-public-path','--stdio']);
+  assert.equal(JSON.parse(out.stdout).offline,'true');
 });
-
-test('upstream CLI failure retains its exit code and diagnostics', async (t) => {
-  const files = await fixture(t, { cli: "process.stderr.write('fixture failure\\n'); process.exit(23);\n" });
-  const result = await run(t, files).done;
-  assert.equal(result.code, 23);
-  assert.equal(result.stdout.length, 0);
-  assert.equal(result.stderr, 'fixture failure\n');
+test('stdio bytes and child exit status survive',async t=>{
+  const f=await fixture(t,{cli:'process.stdin.pipe(process.stdout);'});const bytes=Buffer.from([0,10,13,128,255]);
+  assert.deepEqual((await run(f,[],bytes)).stdout,bytes);
+  const failed=await fixture(t,{cli:'process.exit(23);'});assert.equal((await run(failed)).code,23);
 });
-
-test('rejected commands do not execute the upstream CLI', async (t) => {
-  const files = await fixture(t);
-  for (const args of [['start'], ['port'], ['--help'], ['status', '--stdio'], ['start', '--stdio', '--dev']]) {
-    const result = await run(t, files, args).done;
-    assert.equal(result.code, 1);
-    assert.equal(result.stdout.length, 0);
-    assert.match(result.stderr, /Allowed commands:/);
+test('missing, escaping and mismatched bin/records fail before execution',async t=>{
+  for (const options of [{bin:null},{bin:'../escape.cjs'},{version:'invalid'}]) {
+    const f=await fixture(t,options);assert.equal((await run(f)).code,1);
   }
+  const f=await fixture(t);
+  await fs.writeFile(f.pointer,JSON.stringify({...f.record,version:'1.0.0'}));
+  assert.equal((await run(f)).code,1);
 });
-
-test('dependency versions must match the recorded installation', async (t) => {
-  for (const options of [{ version: '1.0.35-rc.1', recordedVersion: '1.0.34' }, { recordedTsxVersion: '4.23.12' }]) {
-    const files = await fixture(t, options);
-    const result = await run(t, files).done;
-    assert.equal(result.code, 1);
-    assert.equal(result.stdout.length, 0);
-    assert.match(result.stderr, /version does not match the installation record/);
-  }
-  const files = await fixture(t);
-  await rm(join(files.tsx, 'package.json'));
-  const result = await run(t, files).done;
-  assert.equal(result.code, 1);
-  assert.match(result.stderr, /Cannot read installed tsx\/package.json/);
+test('failed upgrade prevents silent launch of the retained previous pair',async t=>{
+  const f=await fixture(t);await fs.writeFile(path.join(f.runtime,'mcp-install-state.json'),'{"status":"failed"}');
+  const out=await run(f);assert.equal(out.code,1);assert.match(out.stderr,/explicitly retry/);assert.equal(out.stdout.length,0);
 });
-
-test('missing or escaping installation records fail without attempting installation', async (t) => {
-  const files = await fixture(t);
-  await rm(files.pointer);
-  const missing = await run(t, files).done;
-  assert.equal(missing.code, 1);
-  assert.match(missing.stderr, /run the plugin installer or updater/);
-  await writeFile(files.pointer, JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34',
-    version: '1.0.34', tsxVersion: '4.23.13', directory: '../outside' }));
-  const escaped = await run(t, files).done;
-  assert.equal(escaped.code, 1);
-  assert.match(escaped.stderr, /installation record is invalid/);
-});
-
-test('a changed upstream wrapper or escaping delegated CLI is rejected', async (t) => {
-  const changed = await fixture(t, { wrapper: "throw new Error('must not execute');" });
-  const changedResult = await run(t, changed).done;
-  assert.equal(changedResult.code, 1);
-  assert.match(changedResult.stderr, /public CLI wrapper changed/);
-  const escaped = await fixture(t, { wrapper: publicWrapper.replace('./src/cli.ts', '../escape.ts') });
-  const escapedResult = await run(t, escaped).done;
-  assert.equal(escapedResult.code, 1);
-  assert.match(escapedResult.stderr, /entry is outside its package/);
-});
-
-test('terminating the launcher terminates the actual MCP process', async (t) => {
-  const files = await fixture(t, { cli: "process.stdout.write(String(process.pid) + '\\n'); setInterval(() => {}, 1000);\n" });
-  const { child, done } = run(t, files, [], null);
-  const ready = await new Promise((resolvePromise, reject) => {
-    child.stdout.once('data', chunk => resolvePromise(chunk.toString().trim()));
-    child.once('error', reject);
-    child.once('close', () => reject(new Error('fixture closed before ready')));
-  });
-  assert.equal(Number(ready), child.pid);
-  child.kill('SIGTERM');
-  const result = await done;
-  assert.equal(result.signal, 'SIGTERM');
-  assert.throws(() => process.kill(child.pid, 0));
-});
-
-test('real installed tsx transpiles TypeScript with no global PATH', {
-  skip: !process.env.COOHOM_TEST_TSX_ROOT,
-}, async (t) => {
-  const realTsx = process.env.COOHOM_TEST_TSX_ROOT;
-  const manifest = JSON.parse(await readFile(join(realTsx, 'package.json'), 'utf8'));
-  const files = await fixture(t, { realTsx, tsxVersion: manifest.version,
-    cli: 'enum Result { Ready = "ready" }; const value: Result = Result.Ready; process.stdout.write(value);\n' });
-  const result = await run(t, files, ['status']).done;
-  assert.equal(result.code, 0, result.stderr);
-  assert.equal(result.stdout.toString(), 'ready');
-  assert.equal(result.stderr, '');
+test('invalid command and private package errors are not echoed',async t=>{
+  const f=await fixture(t,{cli:"throw new Error('private-secret');"});
+  for (const args of [[],['--api-key','secret']]) {const out=await run(f,args);assert.equal(out.code,1);assert.doesNotMatch(out.stderr,/private-secret|--api-key/);}
 });

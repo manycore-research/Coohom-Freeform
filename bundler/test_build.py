@@ -14,6 +14,42 @@ import zipfile
 
 import build
 from build import archive_bundle, bundled_node
+from third_party import notice_files
+
+
+class NoticeDistributionTest(unittest.TestCase):
+    def test_full_builder_carries_same_notices_at_bundle_and_plugin_roots(self):
+        real_repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(prefix='coohom-notice-build-') as temporary:
+            repo = Path(temporary)
+            here = repo / 'bundler'
+            source = repo / 'coohom-freeform'
+            for relative in ('.codex-plugin/plugin.json', 'README.md', 'LICENSE'):
+                target = source / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes((real_repo / 'coohom-freeform' / relative).read_bytes())
+            (repo / 'CHANGELOG.md').write_bytes((real_repo / 'CHANGELOG.md').read_bytes())
+            notices = notice_files(real_repo)
+            for name, content in notices.items():
+                target = repo / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            (here / 'lock').mkdir(parents=True)
+            for name in ('package.json', 'package-lock.json'):
+                (here / 'lock' / name).write_bytes((real_repo / 'bundler/lock' / name).read_bytes())
+            for name in {'install.mjs', *build.MCP_RUNTIME_FILES, *build.INSTALL_HELPERS}:
+                (here / name).write_bytes((real_repo / 'bundler' / name).read_bytes())
+            def runtime_fixture(runtime, target):
+                runtime.mkdir(parents=True)
+            with patch.object(build, 'HERE', here), patch.object(build, 'SOURCE', source), \
+                    patch.object(build, 'run'), patch.object(build, 'bundled_node', side_effect=runtime_fixture):
+                stage = build.build('win32-x64', 'TEST_ONLY_NODE', 'TEST_ONLY_NPM', 'TEST_ONLY_SCAFFOLD')
+            output = repo / 'dist' / (stage.name + '.zip')
+            with zipfile.ZipFile(output) as archive:
+                for name, content in notices.items():
+                    for prefix in ('coohom-freeform-windows-x64/',
+                                   'coohom-freeform-windows-x64/marketplace/plugins/coohom-freeform/'):
+                        self.assertEqual(archive.read(prefix + name), content)
 
 
 class ArchiveBundleTest(unittest.TestCase):

@@ -1,5 +1,4 @@
 {
-  "packageSpec": "freeform-modeling-mcp@1.0.34",
-  "tsxVersion": "4.23.13",
+  "packageSpec": "freeform-modeling-mcp@latest",
   "registry": "https://registry.npmjs.org/"
 }

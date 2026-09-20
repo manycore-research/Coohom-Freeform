@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CJK = re.compile(r'[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af\U00020000-\U0002fa1f]')
 TEXT_SUFFIXES = {'.md', '.json', '.yaml', '.yml', '.mjs', '.ps1', '.cmd', '.tsv'}
 RUNTIME_FILES = ('install.mjs', 'launch-mcp.mjs', 'launch-lux3d.mjs',
-                 'update-freeform.mjs', 'update-lux3d.mjs')
+                 'update-freeform.mjs', 'update-lux3d.mjs', 'runtime-contract.mjs', 'manage-mcp.mjs')
 
 
 def check(repo: Path) -> int:
@@ -22,7 +22,7 @@ def check(repo: Path) -> int:
              for p in (repo / folder).rglob('*')
              if p.is_file() and (p.suffix in TEXT_SUFFIXES or p.name == 'bootstrap')}
     files.update(repo / 'bundler' / name for name in RUNTIME_FILES)
-    files.update(repo / name for name in ('docs/marketplace.md', 'docs/development.md',
+    files.update(repo / name for name in ('CHANGELOG.md', 'docs/marketplace.md', 'docs/development.md',
                                         'docs/releasing.md', 'scripts/release.py'))
     errors = []
     for path in sorted(files):

@@ -9,7 +9,7 @@
       "env_vars": [
         "COOHOM_FREEFORM_CACHE"
       ],
-      "startup_timeout_sec": 600
+      "startup_timeout_sec": 1200
     },
     "lux3d-mcp-server": {
       "command": "./scripts/bootstrap",
@@ -19,10 +19,9 @@
       "cwd": ".",
       "env_vars": [
         "COOHOM_FREEFORM_CACHE",
-        "LUX3D_MCP_BRIDGE_PORT",
-        "LUX3D_MCP_EXECUTOR_URL"
+        "LUX3D_MCP_BRIDGE_PORT"
       ],
-      "startup_timeout_sec": 600
+      "startup_timeout_sec": 1200
     }
   }
 }

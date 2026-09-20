@@ -6,6 +6,7 @@ import os from 'node:os';
 import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { manageMcp } from './manage-mcp.mjs';
 import { installFreeform } from './update-freeform.mjs';
 import { installLux3d } from './update-lux3d.mjs';
 
@@ -22,6 +23,12 @@ export function parseArguments(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--check') options.check = true;
+    else if (argument === '--retry-mcp') options.mcpAction = 'retry';
+    else if (argument === '--mcp-versions') {
+      options.mcpAction = 'versions';
+      options.mcpVersions = { freeform: argv[++index], lux3d: argv[++index] };
+      if (!options.mcpVersions.freeform || !options.mcpVersions.lux3d) throw new Error('--mcp-versions requires both exact versions.');
+    }
     else if (argument === '--yes') options.yes = true;
     else if (argument === '--destination') {
       const destination = argv[++index];
@@ -279,8 +286,8 @@ async function verifyInstallation({ invoke, added, targetPlugin, version, mcpCon
   }
   const criticalFiles = ['.codex-plugin/plugin.json', '.mcp.json', LAUNCH_PATH, LUX3D_LAUNCH_PATH,
     'runtime/mcp/update-freeform.mjs', 'runtime/mcp/update-lux3d.mjs',
-    'runtime/mcp/freeform-policy.json', 'runtime/mcp/freeform-package-lock.json', 'runtime/mcp/lux3d-policy.json',
-    'runtime/mcp/freeform-install.json', 'runtime/mcp/lux3d-install.json'];
+    'runtime/mcp/freeform-policy.json', 'runtime/mcp/lux3d-policy.json',
+    'runtime/mcp/mcp-pair.json', 'runtime/mcp/runtime-contract.mjs', 'runtime/mcp/manage-mcp.mjs'];
   for (const relative of criticalFiles) {
     if ((await hashFile(path.join(targetPlugin, relative))) !== (await hashFile(path.join(cache, relative)))) {
       throw new Error(`Installation cache differs from the new source: ${relative}`);
@@ -297,7 +304,7 @@ async function verifyInstallation({ invoke, added, targetPlugin, version, mcpCon
       ['freeform', freeform, 'freeform-modeling-mcp'], ['lux3d', lux3d, '@manycore/coohom-lux3d-mcp'],
     ]) {
       const runtime = path.join(root, 'runtime/mcp');
-      const pointer = await readJson(path.join(runtime, `${name}-install.json`), `${name} installation record`);
+      const pointer = (await readJson(path.join(runtime, 'mcp-pair.json'), 'MCP pair record'))[name];
       const installedDirectory = path.resolve(runtime, pointer.directory ?? '');
       if (pointer.version !== installation.version || pointer.packageSpec !== installation.packageSpec
         || typeof pointer.directory !== 'string' || !isInside(path.join(runtime, name), installedDirectory)) {
@@ -351,10 +358,27 @@ async function recoverPrevious({ invoke, previous, previousMarketplace, newMarke
   return recovery;
 }
 
+async function defaultMcpRecovery({ state }) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) return { action: 'stop' };
+  const prompt = createInterface({ input: process.stdin, output: process.stdout });
+  try {
+    if (state.attempts < 2) {
+      return /^(?:r|retry)$/i.test((await prompt.question('MCP installation failed. Retry or stop? [r/Enter=stop] ')).trim())
+        ? { action: 'retry' } : { action: 'stop' };
+    }
+    if (!/^(?:v|versions)$/i.test((await prompt.question('Retry failed. Try another exact MCP version combination or stop? [v/Enter=stop] ')).trim())) return { action: 'stop' };
+    const freeform = (await prompt.question('Freeform exact version: ')).trim();
+    const lux3d = (await prompt.question('Lux3D exact version: ')).trim();
+    const accepted = /^(?:y|yes)$/i.test((await prompt.question(`Try Freeform ${freeform} + Lux3D ${lux3d}? Compatibility is not yet verified. [y/N] `)).trim());
+    return accepted ? { action: 'versions', versions: { freeform, lux3d } } : { action: 'stop' };
+  } finally { prompt.close(); }
+}
+
 export async function installBundle({
   bundleRoot = SCRIPT_DIRECTORY, argv = [], env = process.env,
   platform = process.platform, arch = process.arch, cli,
   updateFreeform = installFreeform, updateLux3d = installLux3d,
+  chooseMcpRecovery = defaultMcpRecovery,
   confirmUpgrade = defaultConfirmUpgrade, writeLine = (message) => console.log(message),
 } = {}) {
   const options = parseArguments(argv);
@@ -373,8 +397,9 @@ export async function installBundle({
     || sourceManifest.name !== PLUGIN_NAME || sourceManifest.version !== bundle.version) throw new Error('The bundle marketplace, plugin identity or version does not match.');
   const nodeRelative = NODE_PATHS[platform];
   for (const relative of [nodeRelative, LAUNCH_PATH, LUX3D_LAUNCH_PATH,
+    'runtime/mcp/runtime-contract.mjs', 'runtime/mcp/manage-mcp.mjs',
     'runtime/node/npm/bin/npm-cli.js', 'runtime/mcp/update-lux3d.mjs', 'runtime/mcp/lux3d-policy.json',
-    'runtime/mcp/update-freeform.mjs', 'runtime/mcp/freeform-policy.json', 'runtime/mcp/freeform-package-lock.json', 'skills/coohom-freeform/SKILL.md']) {
+    'runtime/mcp/update-freeform.mjs', 'runtime/mcp/freeform-policy.json', 'skills/coohom-freeform/SKILL.md']) {
     if (!(await isFile(path.join(sourcePlugin, relative)))) throw new Error(`Required bundle file is missing: ${relative}`);
   }
   let installationBase = options.destination;
@@ -433,14 +458,31 @@ export async function installBundle({
     }, null, 2) + '\n');
     const managed = ['freeform', 'lux3d'].flatMap((name) => [
       path.join(sourcePlugin, `runtime/mcp/${name}`), path.join(sourcePlugin, `runtime/mcp/${name}-install.json`),
-    ]);
+    ]).concat(['mcp-pair.json', 'mcp-install-state.json'].map(name => path.join(sourcePlugin, 'runtime/mcp', name)));
     await fs.cp(sourceMarketplace, targetMarketplace, { recursive: true, force: false, errorOnExist: true, verbatimSymlinks: true,
       filter: (source) => !managed.some((directory) => isInside(directory, source)),
     });
-    const freeform = await updateFreeform({ pluginRoot: targetPlugin, env, writeLine });
-    const lux3d = await updateLux3d({ pluginRoot: targetPlugin, env, writeLine });
+    const pairOptions = { pluginRoot: targetPlugin, env, writeLine,
+      action: options.mcpAction ?? 'install', versions: options.mcpVersions,
+      stateRoot: path.join(installationBase, 'mcp-recovery'),
+      installers: { freeform: updateFreeform, lux3d: updateLux3d } };
+    let pair;
+    while (!pair) {
+      try { pair = await manageMcp(pairOptions); }
+      catch (error) {
+        const { state } = await manageMcp({ ...pairOptions, action: 'status' });
+        if (state?.status !== 'failed') throw error;
+        writeLine(error.message);
+        const choice = await chooseMcpRecovery({ state });
+        if (!choice || choice.action === 'stop') throw error;
+        if (choice.action !== 'retry' && choice.action !== 'versions') throw new Error('Invalid MCP recovery choice.');
+        pairOptions.action = choice.action;
+        pairOptions.versions = choice.versions;
+      }
+    }
+    const { freeform, lux3d } = pair;
     const mcpConfig = { mcpServers: {
-      'freeform-modeling-mcp': { command: path.join(targetPlugin, nodeRelative), args: [path.join(targetPlugin, LAUNCH_PATH), 'start', '--stdio'] },
+      'freeform-modeling-mcp': { command: path.join(targetPlugin, nodeRelative), args: [path.join(targetPlugin, LAUNCH_PATH), 'start', '--stdio'], startup_timeout_sec: 120 },
       [LUX3D_SERVER_NAME]: { command: path.join(targetPlugin, nodeRelative), args: [path.join(targetPlugin, LUX3D_LAUNCH_PATH)], startup_timeout_sec: 120 },
     } };
     await fs.writeFile(path.join(targetPlugin, '.mcp.json'), JSON.stringify(mcpConfig, null, 2) + '\n');

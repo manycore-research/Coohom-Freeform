@@ -6,9 +6,10 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+from third_party import notice_files
 
 RUNTIME_FILES = ('launch-mcp.mjs', 'launch-lux3d.mjs', 'update-freeform.mjs',
-                 'update-lux3d.mjs', 'freeform-policy.json', 'freeform-package-lock.json', 'lux3d-policy.json')
+                 'update-lux3d.mjs', 'runtime-contract.mjs', 'manage-mcp.mjs', 'freeform-policy.json', 'lux3d-policy.json')
 MARKETPLACE = 'coohom'
 PLUGIN = 'coohom-freeform'
 
@@ -23,15 +24,18 @@ def source_bytes(path: Path) -> bytes:
 def expected_files(repo: Path) -> dict[str, bytes]:
     source = repo / PLUGIN
     files = {p.relative_to(source).as_posix(): source_bytes(p) for p in source.rglob('*') if p.is_file()}
+    files['CHANGELOG.md'] = source_bytes(repo / 'CHANGELOG.md')
+    files.update(notice_files(repo))
+    files['README.md'] = files['README.md'].replace(b'](../CHANGELOG.md)', b'](CHANGELOG.md)')
     manifest = json.loads(files['.codex-plugin/plugin.json'])
     manifest['mcpServers'] = './.mcp.json'
     files['.codex-plugin/plugin.json'] = (json.dumps(manifest, ensure_ascii=False, indent=2) + '\n').encode()
     servers = {
         'freeform-modeling-mcp': {'command': './scripts/bootstrap', 'args': ['freeform'], 'cwd': '.',
-                                 'env_vars': ['COOHOM_FREEFORM_CACHE'], 'startup_timeout_sec': 600},
+                                 'env_vars': ['COOHOM_FREEFORM_CACHE'], 'startup_timeout_sec': 1200},
         'lux3d-mcp-server': {'command': './scripts/bootstrap', 'args': ['lux3d'], 'cwd': '.',
-                            'env_vars': ['COOHOM_FREEFORM_CACHE', 'LUX3D_MCP_BRIDGE_PORT', 'LUX3D_MCP_EXECUTOR_URL'],
-                            'startup_timeout_sec': 600},
+                            'env_vars': ['COOHOM_FREEFORM_CACHE', 'LUX3D_MCP_BRIDGE_PORT'],
+                            'startup_timeout_sec': 1200},
     }
     files['.mcp.json'] = (json.dumps({'mcpServers': servers}, indent=2) + '\n').encode()
     for path in (repo / 'bundler/marketplace').iterdir():

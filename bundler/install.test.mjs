@@ -168,13 +168,14 @@ async function fixture(t, overrides = {}) {
     [catalogPath, JSON.stringify({ name: bundledMarket, plugins: [{ name: pluginName, source: { source: 'local', path: `./plugins/${pluginName}` } }] })],
     [path.join(sourcePlugin, '.codex-plugin/plugin.json'), JSON.stringify({ name: pluginName, version, description: '隔离安装测试' })],
     [path.join(sourcePlugin, nodeRelative), 'fixture runtime'],
+    [path.join(sourcePlugin, 'runtime/mcp/runtime-contract.mjs'), '// fixture contract'],
+    [path.join(sourcePlugin, 'runtime/mcp/manage-mcp.mjs'), '// fixture manager'],
     [path.join(sourcePlugin, 'runtime/mcp/launch-mcp.mjs'), '// fixture launch'],
     [path.join(sourcePlugin, 'runtime/mcp/launch-lux3d.mjs'), '// fixture lux3d launch'],
     [path.join(sourcePlugin, 'runtime/node/npm/bin/npm-cli.js'), '// fixture npm'],
     [path.join(sourcePlugin, 'runtime/mcp/update-lux3d.mjs'), '// fixture lux3d updater'],
     [path.join(sourcePlugin, 'runtime/mcp/update-freeform.mjs'), '// fixture freeform updater'],
-    [path.join(sourcePlugin, 'runtime/mcp/freeform-package-lock.json'), '{"fixture":true}'],
-    [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@1.0.34' })],
+    [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@latest' })],
     [path.join(sourcePlugin, 'runtime/mcp/lux3d-policy.json'), JSON.stringify({ packageSpec: '@manycore/coohom-lux3d-mcp@latest' })],
     [path.join(sourcePlugin, 'skills/coohom-freeform/SKILL.md'), '# fixture skill'],
   ]);
@@ -201,13 +202,13 @@ async function fixture(t, overrides = {}) {
     confirmUpgrade: async request => { confirmations.push(request); await event('confirm upgrade'); return true; },
   };
   for (const [name, method, resolvedVersion, packageSpec] of [
-    ['freeform', 'updateFreeform', '1.0.34', 'freeform-modeling-mcp@1.0.34'],
+    ['freeform', 'updateFreeform', '1.0.29', 'freeform-modeling-mcp@latest'],
     ['lux3d', 'updateLux3d', '0.1.0-alpha.2', '@manycore/coohom-lux3d-mcp@latest'],
   ]) {
     options[method] = async request => {
       updates[name].push(request);
       await event(`${name} update`);
-      assert.equal(await fs.readFile(path.join(request.pluginRoot, 'runtime/node/npm/bin/npm-cli.js'), 'utf8'), '// fixture npm');
+      assert.equal(await fs.readFile(request.npmCliPath, 'utf8'), '// fixture npm');
       const result = { version: resolvedVersion, packageSpec, directory: `${name}/install-fixture`,
         ...(name === 'freeform' ? { tsxVersion: '4.23.13' } : {}) };
       await fs.mkdir(path.join(request.pluginRoot, 'runtime/mcp', result.directory), { recursive: true });
@@ -259,6 +260,40 @@ function mutations(state) {
   return state.calls.filter(args => (args[0] === 'plugin' && args[1] !== 'list' && !(args[1] === 'marketplace' && args[2] === 'list')) || (args[0] === 'mcp' && args[1] !== 'list'));
 }
 
+test('installer asks retry first, then an explicit pair, before any registry changes', async t => {
+  const f = await fixture(t);
+  const original = f.options.updateFreeform;
+  let attempts = 0;
+  const choices = [];
+  f.options.updateFreeform = async request => {
+    if (++attempts <= 2) throw new Error('fixture E503');
+    assert.equal(request.version, '1.0.29');
+    return original(request);
+  };
+  f.options.chooseMcpRecovery = async ({ state }) => {
+    assert.deepEqual(mutations(await f.readState()), []);
+    choices.push(state.attempts);
+    return state.attempts === 1 ? { action: 'retry' }
+      : { action: 'versions', versions: { freeform: '1.0.29', lux3d: '0.1.0-alpha.2' } };
+  };
+  const installed = await installBundle(f.options);
+  assert.deepEqual(choices, [1, 2]);
+  assert.equal(attempts, 3);
+  assert.equal(installed.freeformVersion, '1.0.29');
+  assert.equal(f.updates.lux3d[0].version, '0.1.0-alpha.2');
+});
+
+test('--yes does not authorize automatic MCP installation retry', async t => {
+  const f = await fixture(t);
+  let attempts = 0;
+  f.options.updateFreeform = async () => { attempts++; throw new Error('fixture E503'); };
+  f.options.chooseMcpRecovery = async () => ({ action: 'stop' });
+  await assert.rejects(installBundle({ ...f.options, argv: [...f.options.argv, '--yes'] }));
+  await assert.rejects(installBundle({ ...f.options, argv: [...f.options.argv, '--yes'] }));
+  assert.equal(attempts, 1);
+  assert.deepEqual(mutations(await f.readState()), []);
+});
+
 async function noLock(f) { await assert.rejects(fs.access(path.join(f.codexDirectory, 'coohom-freeform-install.lock')), { code: 'ENOENT' }); }
 
 function before(events, first, second) {
@@ -289,16 +324,16 @@ test('fresh installation uses versioned absolute paths with Chinese characters a
   const f = await fixture(t);
   const result = await installBundle(f.options);
   assert.equal(result.lux3dVersion, '0.1.0-alpha.2');
-  assert.equal(result.freeformVersion, '1.0.34');
+  assert.equal(result.freeformVersion, '1.0.29');
   assert.equal(result.installationBase, f.destination);
   assert.ok(path.relative(f.destination, result.destination) && !path.relative(f.destination, result.destination).startsWith('..'));
   const targetPlugin = result.targetPlugin ?? path.join(result.destination, 'marketplace/plugins/coohom-freeform');
-  assert.equal(f.updates.freeform[0].pluginRoot, targetPlugin);
-  assert.equal(f.updates.lux3d[0].pluginRoot, targetPlugin);
+  assert.equal(path.dirname(f.updates.freeform[0].pluginRoot), path.join(targetPlugin, 'runtime/mcp'));
+  assert.equal(f.updates.lux3d[0].pluginRoot, f.updates.freeform[0].pluginRoot);
   assert.equal(f.confirmations.length, 0);
   const config = JSON.parse(await fs.readFile(path.join(targetPlugin, '.mcp.json'), 'utf8'));
   assert.deepEqual(config.mcpServers['freeform-modeling-mcp'], {
-    command: path.join(targetPlugin, f.nodeRelative), args: [path.join(targetPlugin, 'runtime/mcp/launch-mcp.mjs'), 'start', '--stdio'] });
+    command: path.join(targetPlugin, f.nodeRelative), args: [path.join(targetPlugin, 'runtime/mcp/launch-mcp.mjs'), 'start', '--stdio'], startup_timeout_sec: 120 });
   assert.deepEqual(config.mcpServers['lux3d-mcp-server'], {
     command: path.join(targetPlugin, f.nodeRelative), args: [path.join(targetPlugin, 'runtime/mcp/launch-lux3d.mjs')], startup_timeout_sec: 120 });
   const state = await f.readState();

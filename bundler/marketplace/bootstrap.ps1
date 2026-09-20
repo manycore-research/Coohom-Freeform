@@ -1,4 +1,5 @@
-param([Parameter(Mandatory = $true)][ValidateSet('freeform', 'lux3d')][string]$Service)
+param([Parameter(Mandatory = $true)][ValidateSet('freeform', 'lux3d')][string]$Service,
+    [ValidateSet('status', 'install', 'retry', 'versions')][string]$Action, [string]$FreeformVersion, [string]$Lux3dVersion)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
@@ -69,7 +70,11 @@ try {
     }
     Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
     Remove-Item Env:NODE_PATH -ErrorAction SilentlyContinue
-    & $node (Join-Path $PSScriptRoot 'marketplace.mjs') $Service $cacheBase $npmCli
+    $mcpArgs = @($Service, $cacheBase, $npmCli)
+    if ($Action) { $mcpArgs += $Action }
+    if ($FreeformVersion) { $mcpArgs += $FreeformVersion }
+    if ($Lux3dVersion) { $mcpArgs += $Lux3dVersion }
+    & $node (Join-Path $PSScriptRoot 'marketplace.mjs') @mcpArgs
     exit $LASTEXITCODE
 } catch {
     [Console]::Error.WriteLine('[coohom-freeform] ' + $_.Exception.Message)

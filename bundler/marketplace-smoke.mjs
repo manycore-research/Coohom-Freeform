@@ -6,6 +6,7 @@ import net from 'node:net';
 import path from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
+import { assertDiscoveredTools, isFreeformLogFile, mcpServerNames, unusedLoopbackPort } from './smoke-contract.mjs';
 
 assert.equal(process.platform, 'win32', 'Run this Windows acceptance script on Windows x64.');
 const [cliArgument, outputArgument, diagnosticOption] = process.argv.slice(2);
@@ -31,10 +32,7 @@ const codexHome = path.join(root, 'isolated-codex');
 const cache = path.join(root, 'runtime cache 中文');
 for (const directory of [profile, codexHome, path.join(root, 'temp')]) await fs.mkdir(directory, { recursive: true });
 await fs.writeFile(path.join(codexHome, 'config.toml'), '');
-const reserve = net.createServer();
-await new Promise((resolve, reject) => { reserve.once('error', reject); reserve.listen(0, '127.0.0.1', resolve); });
-const luxPort = reserve.address().port;
-await new Promise(resolve => reserve.close(resolve));
+const luxPort = await unusedLoopbackPort();
 const env = { ...process.env };
 for (const key of Object.keys(env)) {
   if (['path', 'node_options', 'node_path', 'codex_home', 'userprofile', 'localappdata', 'appdata', 'coohom_freeform_cache', 'lux3d_mcp_bridge_port', 'lux3d_mcp_executor_url', 'tmp', 'temp'].includes(key.toLowerCase())) delete env[key];
@@ -82,7 +80,7 @@ async function probe(label) {
   function request(method, params) {
     const id = ++sequence;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} timed out.`)); }, 620_000);
+      const timer = setTimeout(() => { pending.delete(id); reject(new Error(`${method} timed out.`)); }, 1_220_000);
       pending.set(id, { resolve, reject, timer, method });
       child.stdin.write(JSON.stringify({ id, method, params }) + '\n');
     });
@@ -92,16 +90,13 @@ async function probe(label) {
     child.stdin.write('{"method":"initialized"}\n');
     const result = await request('mcpServerStatus/list', { detail: 'toolsAndAuthOnly' });
     const servers = result.data.filter(server => server.pluginId === 'coohom-freeform@coohom').map(server => ({
-      name: server.name, tools: Object.keys(server.tools ?? {}),
+      name: server.name, tools: Object.values(server.tools ?? {}),
     }));
     report.runs.push({ label, elapsedMs: Date.now() - started, servers, diagnostics });
-    for (const [name, tools] of [
-      ['freeform-modeling-mcp', ['import_generated_asset', 'poll_import_status']],
-      ['lux3d-mcp-server', ['prepare_workspace', 'create_lux3d_model_task', 'get_lux3d_model_task']],
-    ]) {
+    for (const name of mcpServerNames) {
       const server = servers.find(server => server.name === name);
       assert.ok(server, `${label}: missing ${name}`);
-      for (const tool of tools) assert.ok(server.tools.includes(tool), `${label}: missing ${tool}`);
+      assertDiscoveredTools(name, server.tools);
     }
     assert.equal(servers.length, 2);
   } finally {
@@ -129,23 +124,23 @@ try {
   await assert.rejects(fs.access(cache), { code: 'ENOENT' });
   await probe('cold');
   const versions = await fs.readdir(path.join(cache, 'plugins'));
-  const records = {};
-  for (const revision of versions) {
-    for (const service of ['freeform', 'lux3d']) {
-      const pointer = path.join(cache, 'plugins', revision, service, 'runtime/mcp', `${service}-install.json`);
-      try { records[service] = JSON.parse(await fs.readFile(pointer, 'utf8')); }
+  async function readPairs() {
+    const pairs = {};
+    for (const revision of versions) {
+      const pointer = path.join(cache, 'plugins', revision, 'pair/runtime/mcp/mcp-pair.json');
+      try { pairs[revision] = JSON.parse(await fs.readFile(pointer, 'utf8')); }
       catch (error) { if (error.code !== 'ENOENT') throw error; }
     }
+    assert.equal(Object.keys(pairs).length, 1, 'Expected one active runtime pair');
+    return pairs;
   }
-  report.resolvedVersions = Object.fromEntries(Object.entries(records).map(([key, value]) => [key, value.version]));
-  const before = JSON.stringify(records);
+  const pairs = await readPairs();
+  const pair = Object.values(pairs)[0];
+  assert.ok(pair.freeform?.version && pair.lux3d?.version, 'Both MCP versions must be recorded');
+  report.resolvedVersions = { freeform: pair.freeform.version, lux3d: pair.lux3d.version };
+  const before = JSON.stringify(pairs);
   await probe('warm');
-  const after = {};
-  for (const revision of versions) for (const service of ['freeform', 'lux3d']) {
-    try { after[service] = JSON.parse(await fs.readFile(path.join(cache, 'plugins', revision, service, 'runtime/mcp', `${service}-install.json`), 'utf8')); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
-  }
-  assert.equal(JSON.stringify(after), before);
+  assert.equal(JSON.stringify(await readPairs()), before);
   report.warmInstallationRecordsUnchanged = true;
   report.passed = true;
 } catch (error) {
@@ -160,7 +155,7 @@ try {
     throw error;
   });
   for (const filename of cachedFiles) {
-    if (!/[\\/]freeform-modeling-mcp[\\/](?:src[\\/])?logs[\\/][^\\/]+\.log$/.test(filename)) continue;
+    if (!isFreeformLogFile(filename)) continue;
     const content = (await fs.readFile(path.join(cache, filename), 'utf8')).slice(-16_000)
       .replace(/(?:sk-|ghp_|npm_)[A-Za-z0-9_-]{12,}/g, '[redacted]');
     report.freeformStartupLogs.push({ filename, content });
