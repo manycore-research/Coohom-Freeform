@@ -21,10 +21,10 @@ if cli is None:
     cli = next(p for p in npm_root.rglob(executable) if p.is_file() and p.parent.name == 'codex')
 cli = cli.resolve()
 started = time.monotonic()
-(repo / 'tmp').mkdir(exist_ok=True)
-with tempfile.TemporaryDirectory(prefix='zip-acceptance-', dir=repo / 'tmp') as temporary:
+temporary_parent = Path(os.environ.get('RUNNER_TEMP', tempfile.gettempdir())).resolve()
+with tempfile.TemporaryDirectory(prefix='cf-', dir=temporary_parent) as temporary:
     root = Path(temporary).resolve()
-    assert root.is_relative_to(repo / 'tmp')
+    assert root.is_relative_to(temporary_parent)
     source = root / 'extracted'
     with zipfile.ZipFile(args.archive) as archive:
         archive.extractall(source)
