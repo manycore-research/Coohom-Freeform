@@ -31,7 +31,7 @@ Requires Codex with plugin support, Git, and internet access to GitHub, nodejs.o
 
 Coohom sign-in and the relevant service permissions/credits are required for generation. This repository contains the plugin integration, skills, installation/build tools and tests; the two MCPs are external npm dependencies. Hosted editors, model services, accounts and billing are outside this source scope.
 
-Marketplace installation is recommended. For a local package, download the most recent build's `coohom-freeform.tar.gz` from [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verify `SHA256SUMS` and follow its included `INSTALL.md`. Platform ZIP installers are not published; the lightweight tar.gz package contains no `Install.cmd` or `Install.command`. [Usage](coohom-freeform/README.md) · [Marketplace troubleshooting](docs/marketplace.md) · [Development](docs/development.md) · [MIT license](LICENSE)
+Marketplace installation is recommended. For a local package, download the most recent build's `coohom-freeform.tar.gz` from [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verify `SHA256SUMS` and follow its included `INSTALL.md`. Windows x64 and macOS ARM64 ZIP installers are also available in Releases: extract all files and run `Install.cmd` or `Install.command`. The lightweight tar.gz contains neither entrypoint. [Usage](coohom-freeform/README.md) · [Marketplace troubleshooting](docs/marketplace.md) · [Development](docs/development.md) · [MIT license](LICENSE)
 
 ## 中文
 
@@ -60,7 +60,7 @@ codex plugin add coohom-freeform@coohom
 
 生模需要 Coohom 登录及相应服务权限、额度。本仓库公开插件集成层、技能、安装构建工具和测试；两个 MCP 通过独立 npm 包获取。在线编辑器、生模服务、账号及计费系统不在源码范围内。
 
-推荐使用 marketplace 安装。需要本地安装包时，请从 [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) 下载最新构建的 `coohom-freeform.tar.gz`，核对 `SHA256SUMS`，再按包内 `INSTALL.md` 安装。平台 ZIP 安装器尚未发布，轻量 tar.gz 包中不包含 `Install.cmd` 或 `Install.command`。[使用说明](coohom-freeform/README.md) · [安装排障](docs/marketplace.md) · [开发说明](docs/development.md) · [MIT 许可证](LICENSE)
+推荐使用 marketplace 安装。需要本地安装包时，请从 [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) 下载最新构建的 `coohom-freeform.tar.gz`，核对 `SHA256SUMS`，再按包内 `INSTALL.md` 安装。Releases 同时提供 Windows x64 和 macOS ARM64 ZIP 安装器：完整解压后分别运行 `Install.cmd` 或 `Install.command`。轻量 tar.gz 不包含这两个入口。[使用说明](coohom-freeform/README.md) · [安装排障](docs/marketplace.md) · [开发说明](docs/development.md) · [MIT 许可证](LICENSE)
 
 ## 日本語
 
@@ -87,7 +87,7 @@ codex plugin add coohom-freeform@coohom
 
 生成には Coohom へのログインと必要な権限・クレジットが必要です。公開範囲はプラグイン、スキル、インストール・ビルド用ツール、テストです。MCP は外部 npm パッケージで、オンラインエディターや生成・認証・課金サービスは含まれません。
 
-marketplace 経由のインストールを推奨します。ローカルパッケージが必要な場合は、[Releases](https://github.com/manycore-research/Coohom-Freeform/releases) から最新ビルドの `coohom-freeform.tar.gz` を取得し、`SHA256SUMS` を確認して、同梱の `INSTALL.md` に従ってください。OS 別 ZIP は未公開で、軽量 tar.gz には `Install.cmd` や `Install.command` は含まれません。[使い方](coohom-freeform/README.md) · [開発](docs/development.md) · [MIT License](LICENSE)
+marketplace 経由のインストールを推奨します。ローカルパッケージが必要な場合は、[Releases](https://github.com/manycore-research/Coohom-Freeform/releases) から最新ビルドの `coohom-freeform.tar.gz` を取得し、`SHA256SUMS` を確認して、同梱の `INSTALL.md` に従ってください。Releases には Windows x64 と macOS ARM64 の ZIP インストーラーもあります。すべて展開して `Install.cmd` または `Install.command` を実行してください。軽量 tar.gz にはこれらは含まれません。[使い方](coohom-freeform/README.md) · [開発](docs/development.md) · [MIT License](LICENSE)
 
 ## Español
 
@@ -114,7 +114,7 @@ Necesitas Codex con soporte para plugins, Git y acceso a GitHub, nodejs.org, el 
 
 La generación requiere iniciar sesión en Coohom y disponer de los permisos y créditos correspondientes. Este repositorio incluye la integración del plugin, las habilidades, las herramientas de instalación y compilación, y las pruebas. Los dos MCP se obtienen como paquetes npm externos. Los editores en línea, los servicios de generación, las cuentas y la facturación quedan fuera del código fuente publicado.
 
-Se recomienda instalar desde el marketplace. Para una instalación local, descarga `coohom-freeform.tar.gz` de [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verifica `SHA256SUMS` y sigue el archivo `INSTALL.md` incluido. No se publican instaladores ZIP por plataforma; el paquete ligero tar.gz no contiene `Install.cmd` ni `Install.command`. [Guía de uso](coohom-freeform/README.md) · [Solución de problemas](docs/marketplace.md) · [Desarrollo](docs/development.md) · [Licencia MIT](LICENSE)
+Se recomienda instalar desde el marketplace. Para una instalación local, descarga `coohom-freeform.tar.gz` de [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verifica `SHA256SUMS` y sigue el archivo `INSTALL.md` incluido. Releases también ofrece instaladores ZIP para Windows x64 y macOS ARM64: extrae todos los archivos y ejecuta `Install.cmd` o `Install.command`. El paquete ligero tar.gz no incluye estas entradas. [Guía de uso](coohom-freeform/README.md) · [Solución de problemas](docs/marketplace.md) · [Desarrollo](docs/development.md) · [Licencia MIT](LICENSE)
 
 ## Português
 
@@ -141,4 +141,4 @@ codex plugin add coohom-freeform@coohom
 
 A geração exige login no Coohom e as permissões e os créditos correspondentes. Este repositório inclui a integração do plugin, as habilidades, as ferramentas de instalação e compilação e os testes. Os dois MCPs são obtidos como pacotes npm externos. Os editores on-line, os serviços de geração, as contas e o faturamento não fazem parte do código-fonte publicado.
 
-Recomenda-se instalar pelo marketplace. Para uma instalação local, baixe `coohom-freeform.tar.gz` em [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verifique `SHA256SUMS` e siga o arquivo `INSTALL.md` incluído. Não há instaladores ZIP por plataforma publicados; o pacote leve tar.gz não contém `Install.cmd` nem `Install.command`. [Guia de uso](coohom-freeform/README.md) · [Solução de problemas](docs/marketplace.md) · [Desenvolvimento](docs/development.md) · [Licença MIT](LICENSE)
+Recomenda-se instalar pelo marketplace. Para uma instalação local, baixe `coohom-freeform.tar.gz` em [Releases](https://github.com/manycore-research/Coohom-Freeform/releases), verifique `SHA256SUMS` e siga o arquivo `INSTALL.md` incluído. Releases também oferece instaladores ZIP para Windows x64 e macOS ARM64: extraia todos os arquivos e execute `Install.cmd` ou `Install.command`. O pacote leve tar.gz não inclui essas entradas. [Guia de uso](coohom-freeform/README.md) · [Solução de problemas](docs/marketplace.md) · [Desenvolvimento](docs/development.md) · [Licença MIT](LICENSE)

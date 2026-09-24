@@ -10,7 +10,7 @@ tests and documentation under the MIT license. Read the version from the
 checkout or installation being used. The full version includes a
 `+codex.<UTC timestamp>` build identifier. Published tags and assets identify
 released artifacts; a source checkout version alone does not establish publication.
-Platform ZIP installers are not published.
+The release includes a lightweight marketplace tar.gz, Windows x64 and macOS ARM64 ZIP installers, and SHA256SUMS. The lightweight archive downloads Node/npm on first startup; platform ZIPs include Node/npm and download both MCPs during installation.
 
 ## Service requirements
 

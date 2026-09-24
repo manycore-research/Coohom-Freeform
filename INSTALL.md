@@ -41,3 +41,13 @@ Installation does not require model generation or changes to user scenes. Do not
 ## Maintenance
 
 After installation, use the plugin source directory reported by Codex and follow [management commands](docs/marketplace.md#cache-and-recovery). `scripts/manage status` (`scripts/manage.cmd` on Windows) is read-only. `doctor` checks initialization and tool discovery, while `upgrade` updates the plugin and both MCPs and cleans recognized superseded files after success. Explain failures and wait for the user to choose recovery; registration or dependency installation alone is not runtime readiness.
+
+## Release packages
+
+Download the desired artifact from [v0.1.1](https://github.com/manycore-research/Coohom-Freeform/releases/tag/v0.1.1) and verify SHA256SUMS.
+
+- `coohom-freeform.tar.gz`: extract hidden folders too, then follow the archive-specific INSTALL.md to register the extracted local marketplace.
+- `coohom-freeform-windows-x64.zip`: extract every file and run Install.cmd.
+- `coohom-freeform-macos-arm64.zip`: extract every file and run Install.command on Apple Silicon.
+
+Platform installers support `--check` for a read-only plan. For upgrades, save scenes, close old modeling tasks and review the installer replacement prompt. All forms require internet access for the MCP packages and record their resolved versions.
