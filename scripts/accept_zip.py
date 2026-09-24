@@ -30,9 +30,11 @@ args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 cli = args.codex
 if cli is None:
+    executable = shutil.which('codex')
+    cli = Path(executable) if executable else None
+if cli is None:
     npm_root = Path((repo / 'tmp/npm-root.txt').read_text(encoding='utf-8').strip())
-    executable = 'codex.exe' if os.name == 'nt' else 'codex'
-    cli = next(p for p in npm_root.rglob(executable) if p.is_file() and p.parent.name == 'codex')
+    cli = next(p for p in (npm_root / '@openai').rglob('codex.exe') if p.is_file())
 cli = cli.resolve()
 started = time.monotonic()
 temporary_parent = Path(os.environ.get('RUNNER_TEMP', tempfile.gettempdir())).resolve()
