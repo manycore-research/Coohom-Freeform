@@ -29,7 +29,7 @@ parser.add_argument('--report', type=Path, required=True)
 args = parser.parse_args()
 repo = Path(__file__).resolve().parents[1]
 cli = args.codex
-if cli is None:
+if cli is None and os.name != 'nt':
     executable = shutil.which('codex')
     cli = Path(executable) if executable else None
 if cli is None:
