@@ -9,6 +9,7 @@ on:
   push:
     paths:
       - .github/workflows/zip-acceptance.yml
+      - scripts/accept_zip.py
 permissions:
   # GitHub only exposes draft releases to callers with push access.
   contents: write
