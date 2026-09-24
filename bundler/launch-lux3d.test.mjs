@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
+import { randomUUID } from 'node:crypto';
+import { unusedLoopbackPort } from './smoke-contract.mjs';
 
 const sourceDirectory = dirname(fileURLToPath(import.meta.url));
 const inspect = `process.stdout.write(JSON.stringify({
@@ -69,6 +71,7 @@ test('public CLI runs through its public entry without credentials or system PAT
   actual.cwd = await realpath(actual.cwd);
   assert.deepEqual(actual, {
     pid: actual.pid, args: [], cwd: await realpath(join(files.runtime, 'lux3d/install-fixture')), hasKey: false, hasRegion: false, hasConfig: false,
+    executorUrl: 'https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor',
   });
   assert.equal(result.stderr, '');
 });
@@ -85,6 +88,7 @@ test('legacy credentials and executor URL overrides are not forwarded; bridge po
   actual.cwd = await realpath(actual.cwd);
   assert.deepEqual(actual, {
     pid: actual.pid, args: [], cwd: await realpath(join(files.runtime, 'lux3d/install-fixture')), hasKey: false, hasRegion: false, hasConfig: false, port: '18766',
+    executorUrl: 'https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor',
   });
   assert.doesNotMatch(result.stdout.toString() + result.stderr, /old-secret|invalid-old-region/);
 });
@@ -95,7 +99,7 @@ test('executor URL overrides with mixed-case environment names are not forwarded
   ));` });
   const result = await run(t, files, { env: { Lux3d_Mcp_Executor_Url: 'https://test.coohom.com/custom-executor' } }).done;
   assert.equal(result.code, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout.toString()), []);
+  assert.deepEqual(JSON.parse(result.stdout.toString()), ['LUX3D_MCP_EXECUTOR_URL']);
 });
 
 test('entrypoint main-module guard executes with its published argv path', async (t) => {
@@ -157,12 +161,14 @@ test('terminating launcher also terminates its actual MCP PID', { skip: process.
   assert.throws(() => process.kill(pid, 0));
 });
 
-test('real public Lux3D initializes and exposes the plugin workspace contract without authorization', {
+test('real public Lux3D exposes tools and returns the production executor with the matching task identity', {
   skip: !process.env.COOHOM_TEST_LUX3D_ROOT,
 }, async (t) => {
   const files = await fixture(t, { realSdk: process.env.COOHOM_TEST_LUX3D_ROOT });
-  const { child, done } = run(t, files, { input: null, env: { LUX3D_MCP_BRIDGE_PORT: '18766' } });
+  const threadId = `coohom-production-url-test-${randomUUID()}`;
+  const { child, done } = run(t, files, { input: null, env: { LUX3D_MCP_BRIDGE_PORT: String(await unusedLoopbackPort()) } });
   let buffer = '';
+  let discoveredTools;
   const listed = new Promise((resolve, reject) => {
     child.once('error', reject);
     child.once('close', async (code, signal) => {
@@ -184,7 +190,14 @@ test('real public Lux3D initializes and exposes the plugin workspace contract wi
             child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' })}\n`);
             child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/list' })}\n`);
           }
-          if (message.id === 2) resolve(message.result.tools);
+          if (message.id === 2) {
+            discoveredTools = message.result.tools;
+            assert.ok(discoveredTools.some(tool => tool.name === 'prepare_workspace'));
+            child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: {
+              name: 'prepare_workspace', arguments: {}, _meta: { threadId },
+            } })}\n`);
+          }
+          if (message.id === 3) resolve(message.result);
         } catch (error) { reject(error); }
       }
     });
@@ -192,7 +205,16 @@ test('real public Lux3D initializes and exposes the plugin workspace contract wi
   child.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {
     protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'coohom-offline-test', version: '1.0.0' },
   } })}\n`);
-  const names = (await listed).map(tool => tool.name);
+  const workspaceResult = await listed;
+  assert.notEqual(workspaceResult.isError, true);
+  const workspace = workspaceResult.structuredContent;
+  assert.equal(workspace.status, 'executor_required');
+  assert.equal(workspace.threadId, threadId);
+  const executor = new URL(workspace.executorUrl);
+  assert.equal(executor.origin, 'https://www.coohom.com');
+  assert.equal(executor.pathname, '/pub/tool/bim/ai-home/mcp-executor');
+  assert.equal(executor.searchParams.get('codexThreadId'), threadId);
+  const names = discoveredTools.map(tool => tool.name);
   for (const name of [
     'prepare_workspace',
     'create_lux3d_model_task',

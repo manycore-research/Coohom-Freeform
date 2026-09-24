@@ -22,10 +22,10 @@ from third_party import notice_files
 SOURCE = HERE.parent / "coohom-freeform"
 NODE_VERSION = "22.23.2"
 MARKETPLACE = "coohom-freeform-local"
-MCP_RUNTIME_FILES = ("runtime-contract.mjs", "manage-mcp.mjs", "launch-mcp.mjs", "launch-lux3d.mjs",
+MCP_RUNTIME_FILES = ("runtime-state.mjs", "codex-cli.mjs", "management.mjs", "management-host.mjs", "management-doctor.mjs", "management-resources.mjs", "runtime-contract.mjs", "manage-mcp.mjs", "launch-mcp.mjs", "launch-lux3d.mjs",
                      "update-freeform.mjs", "freeform-policy.json",
                      "update-lux3d.mjs", "lux3d-policy.json")
-INSTALL_HELPERS = ("runtime-contract.mjs", "manage-mcp.mjs", "update-freeform.mjs", "update-lux3d.mjs", "launch-mcp.mjs")
+INSTALL_HELPERS = ("runtime-state.mjs", "codex-cli.mjs", "management.mjs", "management-host.mjs", "management-doctor.mjs", "management-resources.mjs", "runtime-contract.mjs", "manage-mcp.mjs", "update-freeform.mjs", "update-lux3d.mjs", "launch-mcp.mjs")
 PLATFORMS = {
     "win32-x64": ("win", "x64", "zip", "windows-x64"),
     "darwin-arm64": ("darwin", "arm64", "tar.gz", "macos-arm64"),

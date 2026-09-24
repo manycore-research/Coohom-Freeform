@@ -1,0 +1,54 @@
+name: ZIP installer acceptance
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag containing candidate ZIP assets
+        default: v0.1.1
+        required: true
+  push:
+    paths:
+      - .github/workflows/zip-acceptance.yml
+      - scripts/accept_zip.py
+permissions:
+  # GitHub only exposes draft releases to callers with push access.
+  contents: write
+jobs:
+  install:
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ inputs.tag || 'v0.1.1' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Prepare official Codex CLI and candidate ZIP
+        shell: bash
+        run: |
+          mkdir -p tmp/download
+          npm install -g @openai/codex --registry=https://registry.npmjs.org/
+          npm root -g > tmp/npm-root.txt
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            gh release download "$RELEASE_TAG" --pattern coohom-freeform-windows-x64.zip --dir tmp/download
+          else
+            gh release download "$RELEASE_TAG" --pattern coohom-freeform-macos-arm64.zip --dir tmp/download
+          fi
+      - name: Run actual installer in an isolated profile
+        shell: bash
+        run: python -B scripts/accept_zip.py tmp/download/*.zip --report dist/acceptance/zip.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zip-acceptance-${{ matrix.os }}
+          path: dist/acceptance/
+          if-no-files-found: ignore

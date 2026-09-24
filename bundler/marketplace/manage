@@ -1,0 +1,39 @@
+#!/bin/sh
+set -eu
+scripts=$(CDPATH= cd "$(dirname "$0")" && pwd)
+[ "$#" -gt 0 ] || set -- status
+json_output=false
+for argument in "$@"; do [ "$argument" != --json ] || json_output=true; done
+fail() {
+    if [ "$json_output" = true ]; then printf '{"status":"failed","reason":"%s"}\n' "$1"; else echo "$1" >&2; fi
+    exit 1
+}
+case "$1" in status|doctor|upgrade|retry|resume-current|cleanup|uninstall) ;; *) fail 'Unknown management action.' ;; esac
+case "$(uname -s)-$(uname -m)" in Darwin-arm64) ;; *) fail 'Supported systems: Windows x64 and macOS ARM64.' ;; esac
+node_version= expected_checksum=
+while IFS="$(printf '\t')" read -r key value checksum; do
+    case "$key" in version) node_version=$value ;; darwin-arm64) expected_checksum=$checksum ;; esac
+done < "$scripts/node-runtime.tsv"
+case "$node_version" in ''|*[!0-9.]*) fail 'Invalid Node runtime policy.' ;; esac
+cache_base=${COOHOM_FREEFORM_CACHE:-"$HOME/Library/Caches/Coohom/Freeform/marketplace"}
+node_root="$cache_base/node/node-v$node_version-darwin-arm64"
+node="$node_root/bin/node"
+npm="$node_root/lib/node_modules/npm/bin/npm-cli.js"
+if [ ! -x "$node" ]; then
+    case "$1" in
+        status)
+            case " $* " in *' --json '*) printf '%s\n' '{"validation":"runtime-missing","nodeAvailable":false,"currentTaskConnected":false}' ;;
+                *) echo 'Node runtime is missing. Status did not download or change any files.' ;; esac
+            exit 0 ;;
+        upgrade|retry)
+            prepare_action=node-info; [ "$1" != retry ] || prepare_action=node-retry
+            /bin/sh "$scripts/bootstrap" freeform "$prepare_action" >/dev/null || fail 'Node preparation failed; inspect bootstrap diagnostics.'
+            export COOHOM_NODE_PREPARED=1 ;;
+        *) fail 'Node runtime is missing. Diagnostics do not download it; run an explicit upgrade.' ;;
+    esac
+fi
+[ -f "$npm" ] && [ "${#expected_checksum}" -eq 64 ] && [ "$(cat "$node_root/.coohom-sha256" 2>/dev/null || true)" = "$expected_checksum" ] || {
+    fail 'The cached Node runtime is incomplete. Inspect it before explicit repair.'
+}
+unset NODE_OPTIONS NODE_PATH
+exec "$node" "$scripts/manage.mjs" "$(dirname "$scripts")" "$cache_base" "$npm" "$@"

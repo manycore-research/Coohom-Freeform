@@ -1,6 +1,6 @@
 {
   "name": "coohom-freeform",
-  "version": "0.1.0+codex.20260920090704",
+  "version": "0.1.1+codex.20260924100348",
   "description": "Create, view and refine 3D scenes from images and natural language with Lux3D image-to-3D generation and Coohom Freeform.",
   "author": {
     "name": "Coohom Freeform"
@@ -9,7 +9,7 @@
   "interface": {
     "displayName": "Coohom Freeform",
     "shortDescription": "Create and edit 3D scenes with images and conversation",
-    "longDescription": "Build spaces with Coohom Freeform and generate furniture from images with Lux3D. Sign in through Coohom. Watch the modeling process and refine furniture, layouts and materials through conversation. If furniture generation fails, use Freeform alternatives. Continue editing the final scene and choose when to save it.",
+    "longDescription": "Build spaces with Coohom Freeform and generate furniture from images with Lux3D. Refine furniture, layouts, materials and functional interior lighting through conversation. After interior modeling, inspect lighting in Render when the installed MCP supports it. Render may internally save the model; additional saving and publishing remain your choice. Recoverable generation and import problems use similar Freeform assets or simple geometry, with approximations explained. Sign-in and Credits decisions remain yours.",
     "developerName": "Coohom Freeform",
     "category": "Productivity",
     "capabilities": [

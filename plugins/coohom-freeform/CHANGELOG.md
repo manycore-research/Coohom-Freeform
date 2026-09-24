@@ -1,36 +1,26 @@
 # Changelog
 
-## 0.1.0+codex.20260920090704 — 2026-09-20
+## 0.1.1+codex.20260924100348 — 2026-09-24
 
-- Recommend GitHub marketplace installation and document the lightweight release archive as the local-package option.
-- Distinguish the published tar.gz packages from unpublished platform ZIP installers.
-- Document real-path and Windows path-length requirements. MCP launchers, skills and dependency policies are unchanged.
+### Added
+- Installation status, isolated MCP diagnostics, plugin and MCP upgrades, explicit recovery, and cleanup of unused resources.
+- Interior lighting review after modeling, with per-room checks, rendered verification, and preservation of existing lights and manual adjustments.
+- Automatic reference preparation and bounded Freeform library or simple-geometry alternatives when generation or import cannot complete.
 
-## 0.1.0+codex.20260920073152 — 2026-09-20
+### Changed
+- Limit generation waiting to five minutes per asset and technical reconnection to one attempt within 60 seconds; reconcile uncertain imports and avoid duplicate placement.
+- Resolve both MCPs from public npm latest on installation or explicit upgrade, record exact installed versions, and reuse them on normal startup.
+- Use the production Coohom executor and preserve the task-specific URL returned by Lux3D.
+- Keep sign-in, Credits, ambiguous scene writes, and unmet design constraints under the user's control.
 
-Public source preview; internal tuning continues. The public version remains 0.1.0.
+### Fixed
+- Start the Freeform launcher correctly through directory aliases, including macOS temporary-directory aliases.
+- Recognize marketplace-owned services without removing unrelated plugins or shared MCPs.
+- Keep status checks local and read-only, and retain explicit recovery after failed dependency preparation.
 
-- Discover current MCP capabilities at runtime and use the task URL returned by Lux3D.
-- Install and explicitly update both MCPs as a pair from public npm latest; record exact installed versions and reuse them on ordinary startup.
-- Require explicit recovery choices after installation or generation failures and preserve scenes during browser diagnostics.
-- Support public MCP CLI entrypoints without pinned wrapper dependencies.
-- Include the JSZip MIT notices and verify dependency licenses during release without blocking installation or startup.
+## 0.1.0 — 2026-09-20
 
-## 0.1.0+codex.20260918013054 — 2026-09-18
-
-- Lock the complete Freeform 1.0.34 dependency tree and install with npm ci within the existing 300-second limit.
-
-## 0.1.0+codex.20260918010126 — 2026-09-18
-
-0.1.0 source preview, updated for the production executor.
-
-- Default Lux3D to `https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor` through its public environment option in both marketplace and platform ZIP launchers.
-- Preserve explicit non-empty executor environment overrides and the MCP's task-specific URL construction.
-- Temporarily pin Freeform to `freeform-modeling-mcp@1.0.34`; its newer latest CLI entry needs separate adapter validation. Lux3D continues to use public npm latest.
-- Verify the pinned Freeform version during installation and startup; retain prior installations if dependency preparation fails.
-- Keep the release version at 0.1.0; refresh the build identifier and matching distribution files.
-- Include automatic Node/npm setup, bounded download retries, source, tests, documentation and the MIT license.
-
-The executor address is production. macOS runtime acceptance and complete sign-in,
-generation and import acceptance remain pending. Platform ZIPs are retained internally;
-the pre-release provides lightweight marketplace archives. See the release guide for scope.
+- Initial public release of the Codex marketplace plugin and lightweight installation archive.
+- Image-guided scene creation, furniture generation and import, and continuous layout and material editing.
+- Automatic Node/npm preparation, paired MCP installation, and recorded dependency versions.
+- MIT-licensed source and included third-party notices.

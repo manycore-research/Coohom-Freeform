@@ -8,7 +8,7 @@ import subprocess
 import sys
 from third_party import notice_files
 
-RUNTIME_FILES = ('launch-mcp.mjs', 'launch-lux3d.mjs', 'update-freeform.mjs',
+RUNTIME_FILES = ('runtime-state.mjs', 'codex-cli.mjs', 'management.mjs', 'management-host.mjs', 'management-doctor.mjs', 'management-resources.mjs', 'launch-mcp.mjs', 'launch-lux3d.mjs', 'update-freeform.mjs',
                  'update-lux3d.mjs', 'runtime-contract.mjs', 'manage-mcp.mjs', 'freeform-policy.json', 'lux3d-policy.json')
 MARKETPLACE = 'coohom'
 PLUGIN = 'coohom-freeform'
@@ -80,6 +80,7 @@ def generate(repo: Path, scaffold: Path) -> None:
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(data)
     (root / 'scripts/bootstrap').chmod(0o755)
+    (root / 'scripts/manage').chmod(0o755)
     check(repo)
 
 

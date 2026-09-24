@@ -73,6 +73,8 @@ class PublicExportTest(unittest.TestCase):
             entry = repo / 'plugins/coohom-freeform/scripts/bootstrap'
             entry.parent.mkdir(parents=True)
             entry.write_bytes(b'#!/bin/sh\nexit 0\n')
+            manager = entry.with_name('manage')
+            manager.write_bytes(b'#!/bin/sh\nexit 0\n')
             (repo / 'public-source.json').write_text(json.dumps({'include': ['plugins']}), encoding='utf-8')
             output = repo / 'source.zip'
             export(repo, output)
@@ -81,6 +83,7 @@ class PublicExportTest(unittest.TestCase):
                 self.assertEqual(info.create_system, 3)
                 self.assertEqual((info.external_attr >> 16) & 0o777, 0o755)
                 self.assertEqual(archive.read(info), b'#!/bin/sh\nexit 0\n')
+                self.assertEqual((archive.getinfo(manager.relative_to(repo).as_posix()).external_attr >> 16) & 0o777, 0o755)
 
 
 if __name__ == '__main__':

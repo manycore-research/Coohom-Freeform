@@ -15,12 +15,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - if: runner.os == 'macOS'
+        run: node -e "if(process.arch !== 'arm64') throw new Error('macOS ARM64 runner required for native bootstrap acceptance')"
       - run: python -B -m unittest discover -s scripts -p "test_*.py"
       - run: python -B -m unittest discover -s bundler -p "test_*.py"
-      - run: node --test bundler/manage-mcp.test.mjs bundler/install.test.mjs bundler/launch-mcp.test.mjs bundler/launch-lux3d.test.mjs bundler/update-freeform.test.mjs bundler/update-lux3d.test.mjs bundler/marketplace.test.mjs bundler/smoke-contract.test.mjs
+      - run: node --test bundler/management.test.mjs bundler/manage-mcp.test.mjs bundler/install.test.mjs bundler/launch-mcp.test.mjs bundler/launch-lux3d.test.mjs bundler/update-freeform.test.mjs bundler/update-lux3d.test.mjs bundler/marketplace.test.mjs bundler/smoke-contract.test.mjs
       - run: python -B scripts/prepare_marketplace.py --check
       - run: python -B scripts/check_release_text.py
       - run: python -B scripts/third_party.py --notices-only
       - if: runner.os == 'macOS'
-        run: test -x plugins/coohom-freeform/scripts/bootstrap && sh -n plugins/coohom-freeform/scripts/bootstrap
+        run: test -x plugins/coohom-freeform/scripts/bootstrap && sh -n plugins/coohom-freeform/scripts/bootstrap && test -x plugins/coohom-freeform/scripts/manage && sh -n plugins/coohom-freeform/scripts/manage
       - run: python scripts/export_public.py --source-only --output dist/coohom-freeform-source.zip

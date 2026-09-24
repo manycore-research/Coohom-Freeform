@@ -5,6 +5,7 @@ service=${1-}
 case "$service" in freeform|lux3d) ;; *) echo '[coohom-freeform] Expected freeform or lux3d.' >&2; exit 1 ;; esac
 scripts=$(CDPATH= cd "$(dirname "$0")" && pwd)
 case "$(uname -s)-$(uname -m)" in Darwin-arm64) platform=darwin-arm64 ;; *) echo '[coohom-freeform] This marketplace supports Windows x64 and macOS ARM64.' >&2; exit 1 ;; esac
+if [ "${1-}" = status ]; then exec /bin/sh "$scripts/manage" status --json; fi
 node_version= archive_name= checksum=
 while IFS="$(printf '\t')" read -r key value hash; do
     case "$key" in version) node_version=$value ;; "$platform") archive_name=$value; checksum=$hash ;; esac
@@ -20,8 +21,10 @@ node_root="$node_parent/node-v$node_version-darwin-arm64"
 node="$node_root/bin/node"
 npm_cli="$node_root/lib/node_modules/npm/bin/npm-cli.js"
 lock="$node_parent/darwin-arm64-$node_version.lock"
-stage= owns_lock=false
+failure="$node_parent/darwin-arm64-$node_version.failure.json"
+stage= owns_lock=false preparing_node=false
 cleanup() {
+    if [ "$preparing_node" = true ]; then printf '%s\n' '{"status":"failed","stage":"node","reason":"Node preparation failed or was interrupted; explicit retry required."}' > "$failure"; fi
     if [ -n "$stage" ]; then
         case "$stage" in "$node_parent"/.download-*) rm -rf -- "$stage" ;; esac
     fi
@@ -38,6 +41,13 @@ while ! mkdir "$lock" 2>/dev/null; do
     owner=$(cat "$lock/pid" 2>/dev/null || true)
     case "$owner" in ''|*[!0-9]*) ;; *)
         if ! kill -0 "$owner" 2>/dev/null; then
+            case "${1-}" in retry|node-retry)
+                if mkdir "$lock.recovery" 2>/dev/null; then
+                    if [ "$(cat "$lock/pid" 2>/dev/null || true)" = "$owner" ] && ! kill -0 "$owner" 2>/dev/null; then rm -f -- "$lock/pid"; rmdir "$lock"; fi
+                    rmdir "$lock.recovery"
+                    continue
+                fi ;;
+            esac
             echo '[coohom-freeform] An interrupted Node preparation left a lock. Close Coohom tasks and follow the cache repair instructions.' >&2
             exit 1
         fi ;;
@@ -48,7 +58,11 @@ while ! mkdir "$lock" 2>/dev/null; do
 done
 owns_lock=true
 printf '%s' "$$" > "$lock/pid"
+case "${1-}" in retry|node-retry) rm -f -- "$failure" ;; esac
+[ ! -f "$failure" ] || { echo '[coohom-freeform] Previous Node preparation failed or was interrupted. Choose retry or stop.' >&2; exit 1; }
 if [ ! -d "$node_root" ]; then
+    preparing_node=true
+    printf '%s\n' '{"status":"interrupted","stage":"node"}' > "$failure"
     echo "[coohom-freeform] Preparing Node $node_version; first startup requires internet access." >&2
     stage=$(mktemp -d "$node_parent/.download-XXXXXXXX")
     curl --fail --location --silent --show-error --proto '=https' --proto-redir '=https' --connect-timeout 30 --max-time 180 \
@@ -60,6 +74,8 @@ if [ ! -d "$node_root" ]; then
     [ -x "$expanded/bin/node" ] && [ -f "$expanded/lib/node_modules/npm/bin/npm-cli.js" ] || exit 1
     printf '%s' "$checksum" > "$expanded/.coohom-sha256"
     mv "$expanded" "$node_root"
+    rm -f -- "$failure"
+    preparing_node=false
 fi
 [ -x "$node" ] && [ -f "$npm_cli" ] && [ "$(cat "$node_root/.coohom-sha256" 2>/dev/null || true)" = "$checksum" ] || {
     echo '[coohom-freeform] The Node cache is incomplete. Close Coohom tasks and follow the cache repair instructions.' >&2; exit 1;
@@ -68,4 +84,8 @@ cleanup
 stage= owns_lock=false
 trap - EXIT INT TERM HUP
 unset NODE_OPTIONS NODE_PATH
+if [ "${1-}" = node-info ] || [ "${1-}" = node-retry ]; then
+    exec "$node" -e 'process.stdout.write(JSON.stringify({nodeExecutable:process.execPath,npmCliPath:process.argv[1]})+"\n")' "$npm_cli"
+fi
+if [ "${1-}" = retry ] && [ ! -f "$cache_base/mcp-state/mcp-install-state.json" ]; then shift; set -- install "$@"; fi
 exec "$node" "$scripts/marketplace.mjs" "$service" "$cache_base" "$npm_cli" "$@"

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { discoverCodex, installBundle, main } from './install.mjs';
+import { checkConflicts, discoverCodex, installBundle, main, parseArguments } from './install.mjs';
 
 const currentPlatform = ['win32', 'darwin'].includes(process.platform) ? process.platform : 'darwin';
 const pluginName = 'coohom-freeform';
@@ -50,6 +50,11 @@ if (action === 'mcp list') {
   if (state.addCompleted && state.corrupt === 'mcp-command') entries = entries.map(item => item.name === 'freeform-modeling-mcp' ? { ...item, transport: { ...item.transport, command: 'wrong-node' } } : item);
   emit(state.unknownMcpShape ? { unexpected: [] } : entries);
 } else if (action === 'plugin list') {
+  // Simulate an unavailable remote catalog throughout preflight, verification and recovery.
+  if (!args.some((value, index) => value === '--disable' && args[index + 1] === 'remote_plugin')) {
+    process.stderr.write('Remote plugin catalog unavailable');
+    process.exit(17);
+  }
   let installed = structuredClone(state.plugins.filter(item => registeredRoot(item.marketplaceName))).map(item => {
     const market = registeredRoot(item.marketplaceName);
     const catalog = JSON.parse(fs.readFileSync(path.join(market, '.agents/plugins/marketplace.json'), 'utf8'));
@@ -175,7 +180,7 @@ async function fixture(t, overrides = {}) {
     [path.join(sourcePlugin, 'runtime/node/npm/bin/npm-cli.js'), '// fixture npm'],
     [path.join(sourcePlugin, 'runtime/mcp/update-lux3d.mjs'), '// fixture lux3d updater'],
     [path.join(sourcePlugin, 'runtime/mcp/update-freeform.mjs'), '// fixture freeform updater'],
-    [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@latest' })],
+    [path.join(sourcePlugin, 'runtime/mcp/freeform-policy.json'), JSON.stringify({ packageSpec: 'freeform-modeling-mcp@latest', registry: 'https://registry.npmjs.org/' })],
     [path.join(sourcePlugin, 'runtime/mcp/lux3d-policy.json'), JSON.stringify({ packageSpec: '@manycore/coohom-lux3d-mcp@latest' })],
     [path.join(sourcePlugin, 'skills/coohom-freeform/SKILL.md'), '# fixture skill'],
   ]);
@@ -292,6 +297,50 @@ test('--yes does not authorize automatic MCP installation retry', async t => {
   await assert.rejects(installBundle({ ...f.options, argv: [...f.options.argv, '--yes'] }));
   assert.equal(attempts, 1);
   assert.deepEqual(mutations(await f.readState()), []);
+});
+
+test('explicit initial versions preserve failed-install recovery gates and retry the selected pair', async t => {
+  const f = await fixture(t);
+  const argv = [...f.options.argv, '--install-mcp-versions', '1.0.29', '0.1.0-alpha.2'];
+  const original = f.options.updateFreeform;
+  f.options.updateFreeform = async () => { throw new Error('fixture E503'); };
+  f.options.chooseMcpRecovery = async () => ({ action: 'stop' });
+  await assert.rejects(installBundle({ ...f.options, argv }), /Prepare the new runtime failed/);
+  assert.match(f.output.join('\n'), /fixture E503/);
+  f.options.updateFreeform = original;
+  await assert.rejects(installBundle({ ...f.options, argv }), /Prepare the new runtime failed/);
+  assert.match(f.output.join('\n'), /Ask the user to retry or stop/);
+  assert.equal(f.updates.freeform.length, 0);
+  assert.deepEqual(mutations(await f.readState()), []);
+  const result = await installBundle({ ...f.options, argv: [...f.options.argv, '--retry-mcp'] });
+  assert.equal(result.freeformVersion, '1.0.29');
+  assert.equal(result.lux3dVersion, '0.1.0-alpha.2');
+  assert.equal(f.updates.freeform[0].version, '1.0.29');
+  assert.equal(f.updates.lux3d[0].version, '0.1.0-alpha.2');
+});
+
+test('explicit initial versions work without prior failure and check mode stays read-only', async t => {
+  const f = await fixture(t);
+  const argv = [...f.options.argv, '--install-mcp-versions', '1.0.29', '0.1.0-alpha.2'];
+  assert.equal((await installBundle({ ...f.options, argv: [...argv, '--check'] })).checked, true);
+  assert.equal(f.updates.freeform.length + f.updates.lux3d.length, 0);
+  assert.deepEqual(mutations(await f.readState()), []);
+  const result = await installBundle({ ...f.options, argv });
+  assert.equal(result.freeformVersion, '1.0.29');
+  assert.equal(result.lux3dVersion, '0.1.0-alpha.2');
+  assert.equal(f.updates.freeform[0].version, '1.0.29');
+  assert.equal(f.updates.lux3d[0].version, '0.1.0-alpha.2');
+});
+
+test('initial version selection rejects incomplete, nonexact and conflicting options', () => {
+  for (const versions of [[], ['1.0.39-rc.1'], ['latest', '0.3.0'], ['^1.0.39', '0.3.0'], ['1.0.39', '--yes']]) {
+    assert.throws(() => parseArguments(['--install-mcp-versions', ...versions]), /both exact MCP versions/);
+  }
+  for (const other of [['--retry-mcp'], ['--mcp-versions', '1.0.38', '0.3.0'], ['--install-mcp-versions', '1.0.38', '0.3.0']]) {
+    const selected = ['--install-mcp-versions', '1.0.39-rc.1', '0.3.0'];
+    assert.throws(() => parseArguments([...selected, ...other]), /only one MCP/);
+    assert.throws(() => parseArguments([...other, ...selected]), /only one MCP/);
+  }
 });
 
 async function noLock(f) { await assert.rejects(fs.access(path.join(f.codexDirectory, 'coohom-freeform-install.lock')), { code: 'ENOENT' }); }
@@ -509,6 +558,63 @@ test('similar global paths or additional arguments do not inherit plugin ownersh
     assert.deepEqual(mutations(await f.readState()), []);
     assert.deepEqual((await f.readState()).globalMcp, [global]);
     await previous.assertUnchanged();
+  }
+});
+
+async function seedRelativeMarketplace(f) {
+  const previous = await f.seed({ marketplace: 'coohom' });
+  const cache = path.join(f.codexDirectory, 'plugins/cache/coohom', pluginName, previous.entry.version);
+  const servers = Object.fromEntries([['freeform-modeling-mcp', 'freeform'], ['lux3d-mcp-server', 'lux3d']]
+    .map(([name, service]) => [name, { command: './scripts/bootstrap', args: [service], cwd: '.' }]));
+  await writeFiles(new Map([
+    [path.join(previous.oldSource, '.mcp.json'), JSON.stringify({ mcpServers: servers })],
+    [path.join(previous.oldSource, 'scripts/bootstrap'), '#!/bin/sh\n'],
+  ]));
+  await fs.cp(previous.oldSource, cache, { recursive: true });
+  const entries = Object.entries(servers).map(([name, server]) => ({ name, enabled: true,
+    transport: { type: 'stdio', ...server, cwd: path.join(cache, '.') } }));
+  return { previous, cache, entries, plugins: { installed: [previous.entry], available: [] } };
+}
+
+test('verified marketplace bootstrap commands support preflight and upgrade from the Codex cache', async t => {
+  const f = await fixture(t);
+  const { entries, previous } = await seedRelativeMarketplace(f);
+  // Expose the cache-resolved working directory returned by the real CLI.
+  await f.setState({ mcpListGlobalOnly: true, globalMcp: entries });
+  const preview = await installBundle({ ...f.options, argv: [...f.options.argv, '--check'] });
+  assert.equal(preview.checked, true);
+  assert.deepEqual(mutations(await f.readState()), []);
+  // The fixture's simulated registry removes old plugin-provided servers with the plugin.
+  f.options.confirmUpgrade = async () => { await f.setState({ globalMcp: [], mcpListGlobalOnly: true }); return true; };
+  const result = await installBundle(f.options);
+  assert.equal(result.checked, false);
+  assert.ok((await f.readState()).calls.some(args => args.join(' ') === `plugin remove ${previous.entry.pluginId} --json`));
+});
+
+test('relative commands require the exact cache identity, declaration and contained executable', async t => {
+  for (const mismatch of ['cwd', 'args', 'manifest', 'source-manifest', 'cached-command', 'cached-cwd', 'traversal', 'missing-script', 'path-command']) {
+    const f = await fixture(t);
+    const { entries, plugins, cache, previous } = await seedRelativeMarketplace(f);
+    const entry = entries[0];
+    if (mismatch === 'cwd') entry.transport.cwd = previous.oldSource;
+    if (mismatch === 'args') entry.transport.args = ['freeform', '--extra'];
+    if (mismatch === 'manifest' || mismatch === 'source-manifest') {
+      const root = mismatch === 'manifest' ? cache : previous.oldSource;
+      await fs.writeFile(path.join(root, '.codex-plugin/plugin.json'), JSON.stringify({ name: pluginName, version: 'wrong' }));
+    }
+    if (['cached-command', 'cached-cwd', 'traversal', 'path-command'].includes(mismatch)) {
+      const config = JSON.parse(await fs.readFile(path.join(cache, '.mcp.json'), 'utf8'));
+      const server = config.mcpServers[entry.name];
+      if (mismatch === 'cached-command') server.command = './scripts/another';
+      if (mismatch === 'cached-cwd') server.cwd = './scripts';
+      if (mismatch === 'traversal') server.command = entry.transport.command = './../../../outside';
+      if (mismatch === 'path-command') server.command = entry.transport.command = 'npx';
+      await fs.writeFile(path.join(cache, '.mcp.json'), JSON.stringify(config));
+      if (['traversal', 'path-command'].includes(mismatch)) await fs.writeFile(path.join(previous.oldSource, '.mcp.json'), JSON.stringify(config));
+    }
+    if (mismatch === 'missing-script') await fs.unlink(path.join(cache, 'scripts/bootstrap'));
+    await assert.rejects(checkConflicts([entry], plugins, f.codexDirectory), /standalone or shared MCP/);
+    assert.deepEqual(mutations(await f.readState()), []);
   }
 });
 

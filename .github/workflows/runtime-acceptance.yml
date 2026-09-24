@@ -1,0 +1,64 @@
+name: Runtime acceptance
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/runtime-acceptance.yml
+permissions:
+  contents: read
+jobs:
+  runtime:
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.2'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install latest MCPs and verify cold and warm discovery
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs/promises';
+          import path from 'node:path';
+          import { execFileSync } from 'node:child_process';
+          import { prepareRuntime } from './plugins/coohom-freeform/scripts/marketplace.mjs';
+          import { doctorPair } from './bundler/management-doctor.mjs';
+          const started = Date.now();
+          const sourceRoot = path.resolve('plugins/coohom-freeform');
+          const cacheRoot = path.resolve('tmp/runtime-acceptance');
+          const npmCliPath = process.platform === 'win32'
+            ? path.join(path.dirname(process.execPath), 'node_modules/npm/bin/npm-cli.js')
+            : path.resolve(path.dirname(process.execPath), '../lib/node_modules/npm/bin/npm-cli.js');
+          await fs.access(npmCliPath);
+          if (process.platform === 'darwin' && process.arch !== 'arm64') throw new Error('macOS ARM64 required');
+          await prepareRuntime({ sourceRoot, cacheRoot, service: 'freeform', npmCliPath });
+          const currentFile = path.join(cacheRoot, 'mcp-state/current.json');
+          const current = JSON.parse(await fs.readFile(currentFile, 'utf8'));
+          const cold = await doctorPair(current);
+          await prepareRuntime({ sourceRoot, cacheRoot, service: 'lux3d', npmCliPath });
+          const reused = JSON.parse(await fs.readFile(currentFile, 'utf8'));
+          if (JSON.stringify(reused.pair) !== JSON.stringify(current.pair)) throw new Error('Warm startup replaced dependencies');
+          const warm = await doctorPair(reused);
+          await fs.mkdir('dist/acceptance', { recursive: true });
+          const runtime = path.resolve(current.pluginRoot, 'runtime/mcp', current.pair.freeform.directory);
+          execFileSync('python', ['-B', 'scripts/third_party.py', '--freeform-runtime', runtime, '--report', 'dist/acceptance/jszip-license.json']);
+          const report = { pluginVersion: current.pluginVersion, platform: process.platform, arch: process.arch,
+            cold, warm, warmPairUnchanged: true, elapsedMs: Date.now() - started,
+            scope: 'Actual npm dependencies and MCP initialization/tool discovery; no Codex registration or scene tools.' };
+          await fs.writeFile('dist/acceptance/runtime.json', JSON.stringify(report, null, 2));
+          console.log(JSON.stringify(report));
+          JS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: runtime-acceptance-${{ matrix.os }}
+          path: dist/acceptance/
+          if-no-files-found: ignore

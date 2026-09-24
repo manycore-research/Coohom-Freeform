@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { readInstallation, readPublicCli, launchPublicCli } from './runtime-contract.mjs';
 const runtimeDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -18,6 +19,6 @@ async function main() {
   await launchPublicCli({ installationDirectory, cliPath, args,
     npmCliPath: installation.npmCliPath ?? path.resolve(runtimeDirectory, '../node/npm/bin/npm-cli.js') });
 }
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   main().catch((error) => { process.stderr.write(`[coohom-freeform] ${error.message}\n`); process.exitCode = 1; });
 }

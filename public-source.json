@@ -11,6 +11,8 @@
     "bundler/update-freeform.mjs", "bundler/update-freeform.test.mjs",
     "bundler/update-lux3d.mjs", "bundler/update-lux3d.test.mjs",
     "bundler/freeform-policy.json", "bundler/lux3d-policy.json",
+    "bundler/management.mjs", "bundler/management-host.mjs", "bundler/management-doctor.mjs",
+    "bundler/management-resources.mjs", "bundler/management.test.mjs", "bundler/runtime-state.mjs", "bundler/codex-cli.mjs",
     "bundler/manage-mcp.mjs", "bundler/manage-mcp.test.mjs", "bundler/runtime-contract.mjs"
   ]
 }
