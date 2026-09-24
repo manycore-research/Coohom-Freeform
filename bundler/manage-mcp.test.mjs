@@ -11,7 +11,7 @@ async function fixture(t) {
   t.after(() => fs.rm(pluginRoot, { recursive: true, force: true }));
   const runtime = path.join(pluginRoot, 'runtime/mcp');
   await fs.mkdir(runtime, { recursive: true });
-  for (const name of ['freeform', 'lux3d']) await fs.writeFile(path.join(runtime, `${name}-policy.json`), '{}');
+  for (const name of ['freeform', 'lux3d']) await fs.writeFile(path.join(runtime, `${name}-policy.json`), JSON.stringify({ packageSpec: `${PACKAGES[name]}@latest`, registry: 'https://registry.npmjs.org/' }));
   const calls = [];
   const f = { pluginRoot, runtime, calls, failing: undefined };
   const installers = Object.fromEntries(Object.keys(PACKAGES).map(service => [service, async options => {
@@ -54,6 +54,18 @@ test('concurrent ensure installs one pair; retry without failure is rejected', a
   assert.equal(new Set(pairs.map(pair => pair.id)).size, 1);
   assert.deepEqual(f.calls, [['freeform', 'latest'], ['lux3d', 'latest']]);
   await assert.rejects(f.run({ action: 'retry' }), /no failed installation/);
+});
+
+test('default installation and retry retain the latest Freeform policy', async t => {
+  const f = await fixture(t);
+  await fs.copyFile(new URL('./freeform-policy.json', import.meta.url), path.join(f.runtime, 'freeform-policy.json'));
+  f.failing = 'freeform';
+  await assert.rejects(f.run(), /retry or stop/);
+  assert.equal((await f.status()).state.requested.freeform, 'latest');
+  f.failing = undefined;
+  const pair = await f.run({ action: 'retry' });
+  assert.equal(pair.freeform.version, '2.0.0');
+  assert.deepEqual(f.calls, [['freeform', 'latest'], ['freeform', 'latest'], ['lux3d', 'latest']]);
 });
 test('failure state survives a new installer destination and cannot be bypassed by --yes', async t => {
   const f = await fixture(t);

@@ -110,6 +110,18 @@ async function cleaned(files) {
   }
 }
 
+test('default policy requests latest and records each resolved version', async t => {
+  const files = await fixture(t);
+  await copyFile(new URL('./freeform-policy.json', import.meta.url), path.join(files.runtime, 'freeform-policy.json'));
+  const installed = await files.install({ version: '1.0.39-rc.1', mode: 'bundled-cli' });
+  assert.equal(installed.packageSpec, 'freeform-modeling-mcp@latest');
+  assert.ok((await files.observations())[0].args.includes(installed.packageSpec));
+  const updated = await files.install({ version: '1.0.39', mode: 'bundled-cli' });
+  assert.equal(updated.packageSpec, 'freeform-modeling-mcp@latest');
+  assert.equal(JSON.parse(await readFile(files.pointer, 'utf8')).version, '1.0.39');
+  await cleaned(files);
+});
+
 test('installation resolves latest with bundled Node and records exact freeform and tsx versions', async (t) => {
   const files = await fixture(t);
   const installed = await files.install();

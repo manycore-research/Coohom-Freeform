@@ -28,13 +28,14 @@ export async function ${symbol}(options) {
   await fs.appendFile(${JSON.stringify(attempts)}, '${service}\\n');
   await new Promise(resolve => setTimeout(resolve, 250));
   if (await fs.access(${JSON.stringify(fail)}).then(() => true, () => false)) throw new Error('fixture download failure');
-  const record = {version:'1.0.0', packageSpec:'${service === 'freeform' ? 'freeform-modeling-mcp' : '@manycore/coohom-lux3d-mcp'}@latest', directory:'${service}/install-fixture', node:options.nodeExecutable, npm:options.npmCliPath};
+  const record = {version:options.version === 'latest' ? '1.0.0' : options.version, packageSpec:'${service === 'freeform' ? 'freeform-modeling-mcp' : '@manycore/coohom-lux3d-mcp'}@' + options.version, directory:'${service}/install-fixture', node:options.nodeExecutable, npm:options.npmCliPath};
   await fs.mkdir(path.join(options.pluginRoot, 'runtime/mcp', record.directory), {recursive:true});
   return record;
 }
+${service === 'freeform' ? `export { readFreeformPolicy } from ${JSON.stringify(new URL('./update-freeform.mjs', import.meta.url).href)};` : ''}
 `);
   }
-  return { directory, sourceRoot, cacheRoot, attempts, fail, npmCliPath: path.join(directory, 'npm-cli.js') };
+  return { directory, sourceRoot, cacheRoot, attempts, fail, npmCliPath: path.join(directory, 'npm-cli.js'), inspect: async () => ({ available: true, pids: [] }) };
 }
 
 test('concurrent cold starts install once and warm starts preserve the runtime without downloading', async t => {
@@ -69,7 +70,8 @@ test('both services share a pair and prose-only plugin versions do not reinstall
   assert.equal(await prepareRuntime({...f,service:'lux3d'}),first);
   assert.equal(await fs.readFile(f.attempts,'utf8'),'freeform\nlux3d\n');
   await fs.writeFile(path.join(f.sourceRoot,'scripts/mcp/freeform-policy.json'),'{"changed":true}');
-  assert.notEqual(await prepareRuntime({...f,service:'freeform'}),first);
+  await assert.rejects(prepareRuntime({...f,service:'freeform'}), /explicit management upgrade/);
+  assert.equal(await fs.readFile(f.attempts,'utf8'),'freeform\nlux3d\n');
   await fs.access(path.join(first,'runtime/mcp/mcp-pair.json'));
 });
 
@@ -119,7 +121,7 @@ for await (const line of readline.createInterface({input:process.stdin})) {
 });
 
 for (const failure of ['download', 'checksum']) {
-  test(`Windows ${failure} failure removes partial Node files and permits a fresh attempt`, { skip: process.platform !== 'win32' }, async t => {
+  test(`Windows ${failure} failure stops ordinary startup and permits only explicit retry`, { skip: process.platform !== 'win32' }, async t => {
     const f = await fixture(t);
     for (const name of ['bootstrap.ps1', 'node-runtime.tsv']) {
       await fs.copyFile(path.join(here, 'marketplace', name), path.join(f.sourceRoot, 'scripts', name));
@@ -134,14 +136,14 @@ function Invoke-WebRequest {
   ${failure === 'download' ? "throw 'fixture network failure'" : ''}
 }
 
-& (Join-Path $PSScriptRoot 'plugin 中文 with spaces/scripts/bootstrap.ps1') freeform
+& (Join-Path $PSScriptRoot 'plugin 中文 with spaces/scripts/bootstrap.ps1') freeform @args
 exit $LASTEXITCODE
 `, 'utf8');
-    for (let attempt = 0; attempt < 2; attempt++) {
+    for (let attempt = 0; attempt < 3; attempt++) {
       const env = { ...process.env, COOHOM_FREEFORM_CACHE: f.cacheRoot };
       for (const key of Object.keys(env)) if (key.toLowerCase() === 'psmodulepath') delete env[key];
       const child = spawn(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'), [
-        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', wrapper,
+        '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', wrapper, ...(attempt === 2 ? ['retry'] : []),
       ], { env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
       let stdout = '', stderr = '';
       child.stdout.on('data', chunk => { stdout += chunk; });
@@ -149,11 +151,12 @@ exit $LASTEXITCODE
       const code = await new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
       assert.equal(code, 1, stderr);
       assert.equal(stdout, '');
-      assert.match(stderr, /fixture-download-attempt/);
-      assert.match(stderr, failure === 'download' ? /fixture network failure/ : /SHA256 mismatch/);
+      if (attempt === 1) { assert.doesNotMatch(stderr, /fixture-download-attempt/); assert.match(stderr, /Previous Node preparation failed/); }
+      else { assert.match(stderr, /fixture-download-attempt/); assert.match(stderr, failure === 'download' ? /fixture network failure/ : /SHA256 mismatch/); }
       const entries = await fs.readdir(path.join(f.cacheRoot, 'node'));
-      assert.equal(entries.length, 1);
-      assert.match(entries[0], /^win-x64-.*\.lock$/);
+      assert.equal(entries.length, 2);
+      assert.ok(entries.some(name => /^win-x64-.*\.lock$/.test(name)));
+      assert.ok(entries.some(name => /^win-x64-.*\.failure\.json$/.test(name)));
     }
   });
 }

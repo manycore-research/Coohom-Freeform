@@ -35,7 +35,7 @@ Inspect actual public status/configuration instead of assuming fixed ports, brok
 
 Follow [Workspace connection recovery](ai-generation.md#workspace-connection-recovery) for documented connection-required branches. Generic disconnection may occur after submission; preserve uncertain records. Never test connectivity with paid generation, repeatedly open pages, switch accounts/ports or close unrelated executors.
 
-If recovery fails collect sanitized tool output, actual URL, connection status, configuration and logs, then explain evidence and let the user decide. Preserve original generation IDs. Tool discovery proves service startup, not browser readiness.
+For technical Lux3D connection failures use the single, bounded [Workspace connection recovery](ai-generation.md#workspace-connection-recovery) attempt, then automatic Freeform fallback when the target scene is ready. Preserve original generation IDs and sanitized diagnostics without asking the user to choose a technical recovery route. Sign-in, ambiguous targets and unavailable Freeform still require the necessary user action. Tool discovery proves service startup, not browser readiness.
 
 ## Freeform target and connection
 
@@ -47,8 +47,16 @@ Help is not a connection probe. Empty scenes can be valid; error text is not sce
 
 Use verified public recovery capabilities. Explain a chosen restart's impact; do not promise the host restarts only one service. Do not refresh scenes without authorization. Recheck target/scene after recovery. Missing import IDs require checking objects before risking duplicates.
 
+## Model and Render
+
+After all interior modeling for the current turn is complete, use the intended page's visible top-level Render tab. Locate it from current accessible names, roles, selected/enabled state or a fresh page observation, never old coordinates. Reuse an existing Render session for lighting-only requests. For geometry, furniture or material changes, use Model and return to Render only after all changes are verified. Preserve the same target scene and iframe; do not open a competing scene, inject internal postMessage commands or call undeclared rendering APIs.
+
+During switching, controls may be disabled. Observe switching, rendering, stopping and error states as the page exposes them, rather than accessing private objects. Before lighting writes, require a selected Render tab with no blocking overlay/error, public lighting-read evidence of an active renderer and ready channel, and a recognizable current-scene first frame on the actual page. See [lighting.md](lighting.md#entry-and-scope). A selected tab or status alone does not establish an image. Wait from observed states within a bounded period; stop on error or prolonged lack of a first frame, preserve evidence and let the user decide recovery. Do not repeatedly toggle or refresh. Hand actual payment or new authorization prompts to the user with the page link.
+
+Entering Render may internally save the model before starting. This required internal save is allowed, but is not proof that later lighting changes were persisted. Do not additionally call save tools, click Save or publish unless requested. If the user prohibits any persistence, explain the conflict and await their choice before entering Render.
+
 ## Interruption and delivery
 
 After switching, closure or disconnection verify connections and scene again. Timeout does not establish nonexecution. Generation success does not prove import success; import status does not replace visual inspection.
 
-Leave the actual canvas visible. Report verified results, approximations and limitations. Stay within the user's requested scope. Let the user choose to save; do not automatically save, publish or exit.
+Leave the actual canvas visible, in Render after interior lighting checks. Report verified results, approximations and limitations. Stay within the user's requested scope. Allow Render's required internal save as described above; let the user choose additional saving or publishing, and do not automatically exit.

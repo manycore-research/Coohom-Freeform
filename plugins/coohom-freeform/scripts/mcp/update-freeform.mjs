@@ -33,16 +33,24 @@ function runNpm(node, args, { cwd, env }) {
   });
 }
 
-export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log, version = 'latest' } = {}) {
-  if (version !== 'latest' && !VERSION.test(version)) throw new Error('Expected latest or an exact MCP version.');
-  const packageSpec = `${PACKAGE}@${version}`;
-  const plugin = path.resolve(pluginRoot);
-  const runtime = path.join(plugin, 'runtime', 'mcp');
+export async function readFreeformPolicy(runtime) {
   const policy = JSON.parse(await fs.readFile(path.join(runtime, 'freeform-policy.json'), 'utf8'));
-  if (policy.packageSpec !== `${PACKAGE}@latest`
+  const version = typeof policy.packageSpec === 'string' && policy.packageSpec.startsWith(`${PACKAGE}@`)
+    ? policy.packageSpec.slice(PACKAGE.length + 1) : '';
+  if ((version !== 'latest' && !VERSION.test(version))
     || policy.registry !== 'https://registry.npmjs.org/') {
     throw new Error('Invalid Freeform MCP installation policy.');
   }
+  return { ...policy, version };
+}
+
+export async function installFreeform({ pluginRoot, nodeExecutable, npmCliPath, env = process.env, writeLine = console.log, version } = {}) {
+  const plugin = path.resolve(pluginRoot);
+  const runtime = path.join(plugin, 'runtime', 'mcp');
+  const policy = await readFreeformPolicy(runtime);
+  version ??= policy.version;
+  if (version !== 'latest' && !VERSION.test(version)) throw new Error('Expected latest or an exact MCP version.');
+  const packageSpec = `${PACKAGE}@${version}`;
   const node = nodeExecutable ?? path.join(plugin, 'runtime', 'node', process.platform === 'win32' ? 'node.exe' : 'bin/node');
   const npmCli = npmCliPath ?? path.join(plugin, 'runtime', 'node', 'npm', 'bin', 'npm-cli.js');
   await fs.access(node);

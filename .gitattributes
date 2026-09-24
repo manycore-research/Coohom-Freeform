@@ -2,3 +2,4 @@ bundler/marketplace/bootstrap text eol=lf
 bundler/marketplace/*.mjs text eol=lf
 bundler/marketplace/*.tsv text eol=lf
 plugins/** text=auto eol=lf
+bundler/marketplace/manage text eol=lf

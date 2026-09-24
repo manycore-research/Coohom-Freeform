@@ -1,4 +1,5 @@
-import { spawnSync } from 'node:child_process';
+import { discoverCodex, runCodexJson } from './codex-cli.mjs';
+export { discoverCodex, runCodexJson } from './codex-cli.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import * as fs from 'node:fs/promises';
@@ -7,6 +8,7 @@ import { createInterface } from 'node:readline/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { manageMcp } from './manage-mcp.mjs';
+import { VERSION } from './runtime-contract.mjs';
 import { installFreeform } from './update-freeform.mjs';
 import { installLux3d } from './update-lux3d.mjs';
 
@@ -23,11 +25,15 @@ export function parseArguments(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (argument === '--check') options.check = true;
-    else if (argument === '--retry-mcp') options.mcpAction = 'retry';
-    else if (argument === '--mcp-versions') {
-      options.mcpAction = 'versions';
-      options.mcpVersions = { freeform: argv[++index], lux3d: argv[++index] };
-      if (!options.mcpVersions.freeform || !options.mcpVersions.lux3d) throw new Error('--mcp-versions requires both exact versions.');
+    else if (['--retry-mcp', '--mcp-versions', '--install-mcp-versions'].includes(argument)) {
+      if (options.mcpAction) throw new Error('Choose only one MCP installation or recovery option.');
+      options.mcpAction = argument === '--retry-mcp' ? 'retry' : argument === '--mcp-versions' ? 'versions' : 'install';
+      if (argument !== '--retry-mcp') {
+        const versions = { freeform: argv[++index], lux3d: argv[++index] };
+        if (!VERSION.test(versions.freeform ?? '') || !VERSION.test(versions.lux3d ?? '')) throw new Error(`${argument} requires both exact MCP versions; ranges and tags are not allowed.`);
+        if (argument === '--install-mcp-versions') options.installVersions = versions;
+        else options.mcpVersions = versions;
+      }
     }
     else if (argument === '--yes') options.yes = true;
     else if (argument === '--destination') {
@@ -52,52 +58,6 @@ async function readJson(filename, label) {
   catch { throw new Error(`${label} is missing or is not valid JSON.`); }
 }
 
-export async function discoverCodex({ env = process.env, platform = process.platform } = {}) {
-  if (env.COOHOM_CODEX_CLI) {
-    const command = path.resolve(env.COOHOM_CODEX_CLI);
-    if (!(await isFile(command)) || (platform === 'win32' && !command.toLowerCase().endsWith('.exe'))) {
-      throw new Error('COOHOM_CODEX_CLI does not point to a usable Codex executable. On Windows, specify codex.exe.');
-    }
-    return { command, prefixArgs: [] };
-  }
-  const executable = platform === 'win32' ? 'codex.exe' : 'codex';
-  const pathValue = Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1] ?? '';
-  for (const directory of pathValue.split(platform === 'win32' ? ';' : ':')) {
-    if (!directory) continue;
-    const command = path.join(directory.replace(/^"|"$/g, ''), executable);
-    if (await isFile(command)) return { command, prefixArgs: [] };
-  }
-  if (platform === 'win32' && env.LOCALAPPDATA) {
-    const binDirectory = path.join(env.LOCALAPPDATA, 'OpenAI', 'Codex', 'bin');
-    let entries = [];
-    try { entries = await fs.readdir(binDirectory, { withFileTypes: true }); }
-    catch (error) { if (error.code !== 'ENOENT') throw error; }
-    const candidates = [];
-    for (const entry of entries.filter((item) => item.isDirectory())) {
-      const command = path.join(binDirectory, entry.name, 'codex.exe');
-      if (await isFile(command)) candidates.push({ command, modified: (await fs.stat(command)).mtimeMs });
-    }
-    candidates.sort((left, right) => right.modified - left.modified);
-    if (candidates.length) return { command: candidates[0].command, prefixArgs: [] };
-  }
-  if (platform === 'darwin') {
-    const command = '/Applications/Codex.app/Contents/Resources/codex';
-    if (await isFile(command)) return { command, prefixArgs: [] };
-  }
-  throw new Error('Codex CLI was not found. Install Codex first, or set COOHOM_CODEX_CLI to the full path of its executable.');
-}
-
-export function runCodexJson(cli, args, { env = process.env, cwd, label } = {}) {
-  const result = spawnSync(cli.command, [...(cli.prefixArgs ?? []), ...args], {
-    cwd, env, encoding: 'utf8', shell: false, windowsHide: true,
-    timeout: 60_000, maxBuffer: 8 * 1024 * 1024,
-  });
-  // MCP list output can contain environment values. Never echo CLI output on failure.
-  if (result.error) throw new Error(`${label} could not run (${result.error.code ?? 'startup failed'}). CLI configuration has not been printed.`);
-  if (result.status !== 0) throw new Error(`${label} failed (exit code ${result.status ?? 'unknown'}). Check this operation in Codex. CLI configuration has not been printed.`);
-  try { return JSON.parse(result.stdout); }
-  catch { throw new Error(`${label} did not return valid JSON. Installation stopped. CLI configuration has not been printed.`); }
-}
 
 function validatePluginList(result) {
   if (!result || !Array.isArray(result.installed) || !Array.isArray(result.available)) {
@@ -113,27 +73,57 @@ function validatePluginList(result) {
   return entries;
 }
 
-async function isInstalledPluginMcp(entry, plugins) {
+async function isCachedPluginMcp(entry, plugin, config, codexHome) {
+  const { transport } = entry;
+  const owned = config.mcpServers?.[entry.name];
+  if (!owned || !/^\.[\\/]/.test(owned.command ?? '') || owned.command !== transport.command
+    || JSON.stringify(owned.args) !== JSON.stringify(transport.args)
+    || !path.isAbsolute(transport.cwd ?? '') || typeof owned.cwd !== 'string'
+    || path.isAbsolute(owned.cwd) || !/^[A-Za-z0-9_-]+$/.test(plugin.marketplaceName)
+    || !/^[A-Za-z0-9][A-Za-z0-9.+_-]*$/.test(plugin.version ?? '')) return false;
+  const cacheBase = path.join(codexHome, 'plugins/cache');
+  const cache = path.join(cacheBase, plugin.marketplaceName, PLUGIN_NAME, plugin.version);
+  const cwd = path.resolve(cache, owned.cwd);
+  const command = path.resolve(cwd, transport.command);
+  if (!samePath(transport.cwd, cwd) || !isInside(cache, cwd) || !isInside(cache, command)) return false;
+  try {
+    const [sourceManifest, manifest, cachedConfig, realBase, realCache, realCommand] = await Promise.all([
+      readJson(path.join(plugin.source.path, '.codex-plugin/plugin.json'), 'source manifest'),
+      readJson(path.join(cache, '.codex-plugin/plugin.json'), 'cached manifest'),
+      readJson(path.join(cache, '.mcp.json'), 'cached MCP configuration'),
+      fs.realpath(cacheBase), fs.realpath(cache), fs.realpath(command),
+    ]);
+    const cached = cachedConfig.mcpServers?.[entry.name];
+    return [sourceManifest, manifest].every(value => value.name === PLUGIN_NAME && value.version === plugin.version)
+      && cached?.command === owned.command && cached.cwd === owned.cwd
+      && JSON.stringify(cached.args) === JSON.stringify(owned.args)
+      && isInside(realBase, realCache) && isInside(realCache, realCommand) && await isFile(realCommand);
+  } catch { return false; }
+}
+
+async function isInstalledPluginMcp(entry, plugins, codexHome) {
   const transport = entry.transport;
   if (!transport || !Array.isArray(transport.args)) return false;
   for (const plugin of plugins) {
     if (plugin.name !== PLUGIN_NAME || !plugin.installed || plugin.source?.source !== 'local'
       || !path.isAbsolute(plugin.source.path ?? '')) continue;
     const source = path.resolve(plugin.source.path);
-    // Only recognize a server launched from this plugin's source directory.
-    // An npx/global server stays shared even when an old plugin references it.
-    if (!path.isAbsolute(transport.command ?? '') || !isInside(source, transport.command)
-      || !path.isAbsolute(transport.args[0] ?? '') || !isInside(source, transport.args[0])) continue;
     let config;
     try { config = JSON.parse(await fs.readFile(path.join(source, '.mcp.json'), 'utf8')); }
     catch { continue; }
+    // Marketplace commands run relative to their verified Codex cache, with service names as arguments.
+    if (await isCachedPluginMcp(entry, plugin, config, codexHome)) return true;
+    // ZIP installations use a plugin-owned Node executable and launcher in the source directory.
+    // An npx/global server stays shared even when an old plugin references it.
+    if (!path.isAbsolute(transport.command ?? '') || !isInside(source, transport.command)
+      || !path.isAbsolute(transport.args[0] ?? '') || !isInside(source, transport.args[0])) continue;
     const owned = config.mcpServers?.[entry.name];
     if (owned?.command === transport.command && JSON.stringify(owned.args) === JSON.stringify(transport.args)) return true;
   }
   return false;
 }
 
-export async function checkConflicts(mcpEntries, pluginResult) {
+export async function checkConflicts(mcpEntries, pluginResult, codexHome = process.env.CODEX_HOME || path.join(os.homedir(), '.codex')) {
   const plugins = validatePluginList(pluginResult);
   if (!Array.isArray(mcpEntries)) throw new Error('Unrecognized Codex MCP list format. Update Codex and try again.');
   const conflicts = [];
@@ -146,7 +136,7 @@ export async function checkConflicts(mcpEntries, pluginResult) {
     const relevant = commandParts.some((part) => typeof part === 'string'
       && /(?:^|[\\/])(?:(?:@qunhe|@manycore)[\\/])?(?:lux3d-mcp-server|coohom-lux3d-mcp|freeform-modeling-mcp)(?:@[^\\/]+)?(?:[\\/]|$)/.test(part))
       || /^(?:freeform(?:[-_]modeling[-_]mcp)?|lux3d-mcp-server)$/i.test(entry.name);
-    if (entry.enabled && relevant && !(await isInstalledPluginMcp(entry, plugins))) conflicts.push(entry.name);
+    if (entry.enabled && relevant && !(await isInstalledPluginMcp(entry, plugins, codexHome))) conflicts.push(entry.name);
   }
   if (conflicts.length) {
     throw new Error(`Enabled standalone or shared MCP services detected: ${conflicts.join(', ')}. Save your scenes and pause tasks using these services, then disable the listed services under MCP servers in Codex settings and try again. --yes does not bypass this check. The installer does not change global MCP configuration.`);
@@ -197,8 +187,8 @@ function previousPlugins(state) {
   }])).values()];
 }
 
-async function validateUpgradeState(state, destination) {
-  await checkConflicts(state.mcp, state.plugins);
+async function validateUpgradeState(state, destination, codexHome) {
+  await checkConflicts(state.mcp, state.plugins, codexHome);
   const previous = previousPlugins(state);
   for (const entry of previous) {
     if (entry.source?.source !== 'local' || !path.isAbsolute(entry.source.path ?? '')) {
@@ -278,7 +268,7 @@ async function verifyInstallation({ invoke, added, targetPlugin, version, mcpCon
   if (!isInside(path.join(codexHome, 'plugins', 'cache'), cache) || samePath(cache, targetPlugin)) {
     throw new Error('The CLI returned an installation cache outside the current Codex configuration directory.');
   }
-  const installed = validatePluginList(invoke(['plugin', 'list', '--json'], 'Verify plugin version and source'));
+  const installed = validatePluginList(invoke(['plugin', 'list', '--disable', 'remote_plugin', '--json'], 'Verify plugin version and source'));
   const expected = { marketplaceName: MARKETPLACE_NAME, version, source: { path: targetPlugin } };
   const matches = installed.filter((entry) => entry.name === PLUGIN_NAME && entry.installed);
   if (matches.length !== 1 || !samePlugin(matches[0], expected) || !matches[0].enabled) {
@@ -343,12 +333,12 @@ async function recoverPrevious({ invoke, previous, previousMarketplace, newMarke
       continue;
     }
     const present = (() => {
-      try { return validatePluginList(invoke(['plugin', 'list', '--json'], 'Check previous plugin recovery status')).some((entry) => samePlugin(entry, old) && entry.enabled); }
+      try { return validatePluginList(invoke(['plugin', 'list', '--disable', 'remote_plugin', '--json'], 'Check previous plugin recovery status')).some((entry) => samePlugin(entry, old) && entry.enabled); }
       catch { return false; }
     })();
     if (!present) attempt(`Reinstall ${old.pluginId}`, () => invoke(['plugin', 'add', old.pluginId, '--json'], `Restore ${old.pluginId}`));
     try {
-      const restored = validatePluginList(invoke(['plugin', 'list', '--json'], 'Verify previous plugin recovery'));
+      const restored = validatePluginList(invoke(['plugin', 'list', '--disable', 'remote_plugin', '--json'], 'Verify previous plugin recovery'));
       recovery.push(restored.some((entry) => samePlugin(entry, old) && entry.enabled)
         ? `${old.pluginId} has been restored to its previous version and source` : `${old.pluginId} has not been verified as restored. Reinstall from its original source in Codex plugin settings`);
     } catch { recovery.push(`${old.pluginId} has not been verified as restored. Check its original source in Codex plugin settings`); }
@@ -418,18 +408,19 @@ export async function installBundle({
   const invoke = (args, label) => runCodexJson(codex, args, { env, cwd: root, label });
   const inspect = () => ({
     mcp: invoke(['mcp', 'list', '--json'], 'Read MCP list'),
-    plugins: invoke(['plugin', 'list', '--json'], 'Read plugin list'),
+    // Installation only needs registered plugins; remote catalog availability must not block it.
+    plugins: invoke(['plugin', 'list', '--disable', 'remote_plugin', '--json'], 'Read plugin list'),
     marketplaces: validateMarketplaces(invoke(['plugin', 'marketplace', 'list', '--json'], 'Read marketplace list')),
   });
   const initial = inspect();
   const initialPrevious = previousPlugins(initial);
   if (options.check) {
     printPlan(initialPrevious, bundle.version, targetPlugin, writeLine);
-    await validateUpgradeState(initial, destination);
+    await validateUpgradeState(initial, destination, codexHome);
     writeLine(`Check passed: ${platform}/${arch}. No upgrade was approved, no dependencies were downloaded, and no installation files or Codex configuration were changed.`);
     return { checked: true, destination, installationBase, targetPlugin, previousPlugins: initialPrevious };
   }
-  await validateUpgradeState(initial, destination);
+  await validateUpgradeState(initial, destination, codexHome);
   await fs.mkdir(codexHome, { recursive: true });
   const lockPath = path.join(codexHome, 'coohom-freeform-install.lock');
   let lock;
@@ -447,7 +438,7 @@ export async function installBundle({
   let newInstallAttempted = false;
   try {
     const current = inspect();
-    ({ previous, previousMarketplace } = await validateUpgradeState(current, destination));
+    ({ previous, previousMarketplace } = await validateUpgradeState(current, destination, codexHome));
     const confirmedState = upgradeFingerprint(current);
     printPlan(previous, bundle.version, targetPlugin, writeLine);
     await fs.mkdir(installationBase, { recursive: true });
@@ -463,7 +454,7 @@ export async function installBundle({
       filter: (source) => !managed.some((directory) => isInside(directory, source)),
     });
     const pairOptions = { pluginRoot: targetPlugin, env, writeLine,
-      action: options.mcpAction ?? 'install', versions: options.mcpVersions,
+      action: options.mcpAction ?? 'install', versions: options.mcpVersions, installVersions: options.installVersions,
       stateRoot: path.join(installationBase, 'mcp-recovery'),
       installers: { freeform: updateFreeform, lux3d: updateLux3d } };
     let pair;
@@ -496,7 +487,7 @@ export async function installBundle({
     if (previous.length && options.yes) writeLine('--yes explicitly approves removal of the listed plugins. Standalone/shared MCP services are outside this operation.');
     stage = 'Recheck the upgrade plan';
     const beforeRemoval = inspect();
-    await validateUpgradeState(beforeRemoval, destination);
+    await validateUpgradeState(beforeRemoval, destination, codexHome);
     if (upgradeFingerprint(beforeRemoval) !== confirmedState) {
       throw new Error('Existing plugins or marketplace sources changed during preparation or confirmation. Operation stopped. Run the installer again and confirm the updated upgrade plan.');
     }
@@ -504,7 +495,7 @@ export async function installBundle({
     for (const old of previous) {
       registryMutation = true;
       invoke(['plugin', 'remove', pluginId(old), '--json'], `Remove ${old.pluginId}`);
-      const afterRemove = validatePluginList(invoke(['plugin', 'list', '--json'], 'Verify previous plugin removal'));
+      const afterRemove = validatePluginList(invoke(['plugin', 'list', '--disable', 'remote_plugin', '--json'], 'Verify previous plugin removal'));
       if (afterRemove.some((entry) => entry.name === PLUGIN_NAME && entry.marketplaceName === old.marketplaceName && entry.installed)) {
         throw new Error(`Removal of ${old.pluginId} has not been verified. Source replacement stopped.`);
       }

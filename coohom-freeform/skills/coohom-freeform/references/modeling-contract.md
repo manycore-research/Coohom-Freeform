@@ -12,6 +12,10 @@ Discover public help and scene-query capabilities. Help does not prove a connect
 
 Inspect actual structured/text results including documented errors returned as ordinary text. Do not assume common fields such as objects, objectId or success. Use meaningful, unique names and record the actual returned names, object identities and types; the service may change requested names. Map each user-facing furniture name to all its actual components, and preserve their relationships during movement or rotation. Do not assume custom furniture is grouped automatically or infer object types from how a model was created.
 
+## Fixtures and functional lights
+
+Fixture geometry, decorative strips and create_object(type=LIGHT) are not substitutes for functional scene illumination. Model fixtures within the requested scope, record their actual emitting locations and follow [lighting.md](lighting.md) only after this turn's entire interior modeling is complete and Render is ready. Moving a fixture does not establish that its functional light follows automatically; verify known associations. Current lighting declarations govern parameters and full-list writes.
+
 ## Coordinates and dimensions
 
 Read units, axes, handedness, origin, angle units and dimension ordering from current declarations. Verify actual bounds before calculating support height or proportions. Resolve conflicting descriptions using read-only bounds/geometry evidence; do not repeatedly swap axes without evidence. Camera direction does not change world coordinates.
@@ -20,7 +24,7 @@ Original asset dimensions must come from real metadata in its declared order. De
 
 ## Materials, assets and views
 
-Search before placing a fallback library asset, using currently declared discovery/search tools and actual results. Read current query language, filters and preview input types. For visually important assets, inspect real previews and compare multiple available candidates by silhouette, proportions, colors and materials; a category match or the first result alone is insufficient. Check generated assets using available previews and the imported scene. Explain limited candidates, unavailable previews and approximations. An authorized failure fallback can proceed, but unresolved choices about core appearance require the user's decision. Library IDs and original dimensions must come from real search results.
+Search before placing a fallback library asset, using currently declared discovery/search tools and actual results. Read current query language, filters and preview input types. For visually important assets, inspect real previews and compare multiple available candidates by silhouette, proportions, colors and materials; a category match or the first result alone is insufficient. Check generated assets using available previews and the imported scene. Follow [Freeform asset fallback](#freeform-asset-fallback) for bounded automatic selection. Library IDs and original dimensions must come from real search results.
 
 Obtain materials through the currently declared material discovery capability. Identify major colors and coverage for the relevant object or area, and inspect visible texture direction and scale. Apply the reference-based comparison rules below when relevant images are available.
 
@@ -50,6 +54,18 @@ The workflow permits automatically finding and applying similar materials after 
 4. Check actual output, target page and available object information after each application, including coverage and appearance. Stop and record the final material when application succeeds and the replacement goal is met. If the tool succeeds but no valid view is available, report visual verification as incomplete; a screenshot problem is not a reason to replace again.
 5. Stop if similar candidates are exhausted, no suitable candidate exists, connection/object faults affect all candidates, or only a materially different result is possible. Preserve the result, explain failures and limits and let the user choose next steps. Briefly disclose the actual substitute and remaining visual differences at delivery.
 
+## Freeform asset fallback
+
+Use this sequence for [eligible technical failures](ai-generation.md#automatic-technical-fallback), user-selected Freeform recovery and the floor-plan no-image path. Confirm Freeform readiness and reconcile any prior scene write first. A generation task may remain unresolved while a substitute is built, but an unresolved import or placement must not race a new scene write.
+
+1. Carry forward the asset's function, desired size, position, orientation, silhouette, main colors and materials. Preserve explicit layout, function and key dimensions; ordinary visual approximation is allowed without another approval. Keep a record of fallback progress and actual objects so another turn resumes instead of starting over.
+2. Search the real library with currently supported filters, for at most **two search rounds per asset fallback**. Use the first round for the original requirements; the second may relax only nonessential style/color preferences, never explicit requirements. Inspect available previews and compare actual candidates, prioritizing function and spatial fit before silhouette and finish. Do not choose an arbitrary first result. Unavailable search or previews do not authorize invented assets or a claim of visual matching; if no candidate can be established as suitable, proceed to simple geometry.
+3. Place the best suitable candidate and verify it. On failure, first check connection, target, real job status and scene execution under the shared recovery rules. Only a confirmed candidate-specific failure permits **one different candidate** from the search results, then simple geometry. A shared Freeform fault or an unresolved write stops candidate switching. Search refresh, reconnect and a new turn do not reset these allowances for the same fallback.
+4. If no suitable candidate works, compose a simple object with publicly declared Freeform geometry capabilities, preserving function, main dimensions, placement, silhouette and color blocks as far as supported. Use minimal geometry with valid topology, map all components and keep writes serial. Do not ask about routine detail loss. If geometry creation fails, apply the shared single safe-write retry rule; do not loop through new constructions. Pause the affected asset if it cannot be completed safely.
+5. Query and inspect the actual object/components after each write. Verify dimensions, support/contact, orientation, obvious intersections and visual appearance against the original requirements. Only a verified result completes scene delivery; neither a successful call nor a placeholder name is acceptance. Preserve unrelated objects and usable prior results.
+
+If explicit design constraints cannot be met, pause this asset, continue independent safe work and summarize the necessary design decision. At delivery disclose only consequential approximations or limitations, without dumping recovered Lux3D failures. Do not claim exact reference matching, cancellation of background generation, or successful Lux3D generation for a substitute. The generation record's disabled-auto-import marker prevents late output from replacing this work.
+
 ## Detailed geometry
 
 For public scripting, first retrieve current guidance, supported interfaces, exact method signatures and dependency types through declared documentation/search capabilities. Do not use private objects or undeclared fields via casts.
@@ -62,4 +78,4 @@ For face/curve/extrusion/sweep operations, read current topology constraints. Ve
 
 Query actual results and inspect the page after additions, replacements, deletion or topology changes. A name or success message does not establish final size, material or bounds. Perform the main Skill's spatial/visual checks. Do not claim strict collision detection unless a declared capability actually performed it.
 
-After timeout read the scene first; retry only after confirming nonexecution and resolving its cause. For missing objects reread scene and selection. For unexplained failures collect evidence and explain choices instead of repeatedly changing parameters. Follow [browser-session.md](browser-session.md). Leave the actual scene visible; do not automatically save or publish.
+After timeout read the scene first; retry only after confirming nonexecution and resolving its cause. For missing objects reread scene and selection. For unexplained failures collect evidence and explain choices instead of repeatedly changing parameters. Follow [browser-session.md](browser-session.md). Leave the actual scene visible. Render's required internal save is allowed; do not additionally save or publish unless requested.

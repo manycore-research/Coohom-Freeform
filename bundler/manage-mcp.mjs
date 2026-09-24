@@ -2,42 +2,11 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
-import { installFreeform } from './update-freeform.mjs';
+import { atomicJson, acquireManagementLock, readLeases } from './runtime-state.mjs';
+import { installFreeform, readFreeformPolicy } from './update-freeform.mjs';
 import { installLux3d } from './update-lux3d.mjs';
 import { VERSION, readOptionalJson, validateRecord } from './runtime-contract.mjs';
 
-async function atomicJson(filename, value) {
-  const temporary = `${filename}.${randomUUID()}.tmp`;
-  try {
-    await fs.writeFile(temporary, JSON.stringify(value, null, 2) + '\n');
-    await fs.rename(temporary, filename);
-  } finally { await fs.rm(temporary, { force: true }); }
-}
-async function acquireLock(filename, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (true) {
-    try {
-      const handle = await fs.open(filename, 'wx');
-      await handle.writeFile(JSON.stringify({ pid: process.pid }));
-      return async () => { await handle.close(); await fs.unlink(filename); };
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      let owner;
-      try { owner = await readOptionalJson(filename); }
-      catch (error) { if (!(error instanceof SyntaxError)) throw error; }
-      if (owner?.pid) {
-        try { process.kill(owner.pid, 0); }
-        catch (error) {
-          if (error.code === 'ESRCH') throw new Error(`Interrupted installation: inspect ${filename} before removing its stale lock and choosing retry.`);
-          if (error.code !== 'EPERM') throw error;
-        }
-      }
-      if (Date.now() >= deadline) throw new Error('Another MCP combination installation is running. No new attempt was made.');
-      await delay(100);
-    }
-  }
-}
 export function recoveryMessage(state) {
   const selected = `Freeform ${state.requested.freeform}, Lux3D ${state.requested.lux3d}`;
   return `MCP installation failed at ${state.service} (${selected}): ${state.reason}. `
@@ -46,8 +15,9 @@ export function recoveryMessage(state) {
 }
 export async function manageMcp({ pluginRoot, action = 'ensure', versions, stateRoot,
   nodeExecutable, npmCliPath, env = process.env, writeLine = console.log, lockTimeoutMs = 660_000,
-  installers = { freeform: installFreeform, lux3d: installLux3d } } = {}) {
+  installers = { freeform: installFreeform, lux3d: installLux3d }, lockHeld = false, onStage = async () => {}, installVersions } = {}) {
   if (!['status', 'ensure', 'install', 'retry', 'versions'].includes(action)) throw new Error('Expected status, install, retry, or versions.');
+  if (installVersions && (!VERSION.test(installVersions.freeform) || !VERSION.test(installVersions.lux3d))) throw new Error('Specify both exact MCP versions.');
   const runtime = path.resolve(pluginRoot, 'runtime/mcp');
   const stateDirectory = path.resolve(stateRoot ?? runtime);
   const stateFile = path.join(stateDirectory, 'mcp-install-state.json');
@@ -55,7 +25,7 @@ export async function manageMcp({ pluginRoot, action = 'ensure', versions, state
   if (action === 'status') return { state: await readOptionalJson(stateFile), pair: await readOptionalJson(pairFile) };
   await fs.mkdir(runtime, { recursive: true });
   await fs.mkdir(stateDirectory, { recursive: true });
-  const unlock = await acquireLock(path.join(stateDirectory, '.mcp-pair.lock'), lockTimeoutMs);
+  const unlock = lockHeld ? async () => {} : await acquireManagementLock(stateDirectory, lockTimeoutMs);
   let stage;
   const moved = [];
   let activated = false;
@@ -70,11 +40,12 @@ export async function manageMcp({ pluginRoot, action = 'ensure', versions, state
       for (const service of ['freeform', 'lux3d']) validateRecord(service, pair[service]);
       return pair;
     }
+    if ((await readLeases(stateDirectory)).length) throw new Error('MCP resources are in use. Close Coohom tasks before changing dependencies.');
     if (action === 'retry' && (!previous || previous.status === 'ready')) throw new Error('There is no failed installation to retry.');
     if (action === 'versions' && (!previous || previous.status !== 'failed' || previous.attempts < 2)) throw new Error('Other version combinations are offered only after the user has retried and that retry failed.');
     if (action === 'versions' && (!versions || !VERSION.test(versions.freeform) || !VERSION.test(versions.lux3d))) throw new Error('Specify both exact MCP versions; ranges and tags are not allowed.');
     const requested = action === 'versions' ? { freeform: versions.freeform, lux3d: versions.lux3d }
-      : action === 'retry' ? previous.requested : { freeform: 'latest', lux3d: 'latest' };
+      : action === 'retry' ? previous.requested : installVersions ?? { freeform: (await readFreeformPolicy(runtime)).version, lux3d: 'latest' };
     const state = { status: 'installing', attempts: (action === 'retry' || action === 'versions' ? previous.attempts : 0) + 1,
       requested, service: 'preparation', startedAt: new Date().toISOString() };
     await atomicJson(stateFile, state);
@@ -86,6 +57,8 @@ export async function manageMcp({ pluginRoot, action = 'ensure', versions, state
       const installed = {};
       for (const service of ['freeform', 'lux3d']) {
         state.service = service;
+        writeLine(`Stage: installing ${service}`);
+        await onStage(service);
         await atomicJson(stateFile, state);
         installed[service] = validateRecord(service, await installers[service]({ pluginRoot: stage,
           nodeExecutable: nodeExecutable ?? path.resolve(pluginRoot, 'runtime/node', process.platform === 'win32' ? 'node.exe' : 'bin/node'),

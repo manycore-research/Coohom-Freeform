@@ -8,6 +8,8 @@ Languages: [English](#english) · [中文](#中文) · [日本語](#日本語) �
 
 Create and continuously edit Coohom 3D scenes in Codex using images and natural language. Combine Lux3D image-to-3D generation with room modeling, furniture placement and material editing.
 
+With a lighting-capable Freeform MCP, completed interior edits enter Render for whole-scene lighting checks, preserving existing lights and manual adjustments. Render may internally save the model; additional saving and publishing remain user choices. See [interior lighting](coohom-freeform/README.md#interior-lighting).
+
 **v0.1.0 is now officially released.** See [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) for downloads and [release details](docs/releasing.md) for distribution information.
 
 ### Install
@@ -25,7 +27,7 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-Requires Codex with plugin support, Git, and internet access to GitHub, nodejs.org, public npm and Coohom. The launcher supports Windows x64 and macOS ARM64. Node/npm are prepared automatically. Restart Codex after installation, open a new task and enter `$coohom-freeform`. First MCP startup can take several minutes. Both MCPs resolve public npm latest during installation and record the exact installed versions for later startups.
+Requires Codex with plugin support, Git, and internet access to GitHub, nodejs.org, public npm and Coohom. The launcher supports Windows x64 and macOS ARM64. Node/npm are prepared automatically. Restart Codex after installation, open a new task and enter `$coohom-freeform`. First MCP startup can take several minutes. Freeform and Lux3D resolve public npm latest during installation and record the exact installed versions for later startups.
 
 Coohom sign-in and the relevant service permissions/credits are required for generation. This repository contains the plugin integration, skills, installation/build tools and tests; the two MCPs are external npm dependencies. Hosted editors, model services, accounts and billing are outside this source scope.
 
@@ -34,6 +36,8 @@ Marketplace installation is recommended. For a local package, download the most 
 ## 中文
 
 在 Codex 中通过图片和自然语言创建、持续修改 Coohom 三维场景，结合 Lux3D 图片生模与自由造型，完成空间搭建、家具摆放和材质调整。
+
+安装的 Freeform MCP 支持灯光工具时，每轮室内编辑完成后会进入 Render 检查全场灯光，并保留已有灯光和手动调整。进入 Render 可能触发内部保存，额外保存与发布仍由用户决定。详见[室内灯光说明](coohom-freeform/README.md#interior-lighting)。
 
 **v0.1.0 已正式发布。** 安装包见 [Releases](https://github.com/manycore-research/Coohom-Freeform/releases)，分发信息见[发布说明](docs/releasing.md)。
 
@@ -52,7 +56,7 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-需要支持插件的 Codex、Git，以及 GitHub、nodejs.org、公网 npm 和 Coohom 的网络访问。启动器支持 Windows x64 和 macOS ARM64。Node/npm 自动准备。安装后重启 Codex，新建任务并输入 `$coohom-freeform`；首次 MCP 启动可能需要数分钟。两个 MCP 均在安装时解析公网 npm latest，并记录实际版本供后续启动复用。
+需要支持插件的 Codex、Git，以及 GitHub、nodejs.org、公网 npm 和 Coohom 的网络访问。启动器支持 Windows x64 和 macOS ARM64。Node/npm 自动准备。安装后重启 Codex，新建任务并输入 `$coohom-freeform`；首次 MCP 启动可能需要数分钟。Freeform 和 Lux3D 在安装时解析公网 npm latest，并记录实际版本供后续启动复用。
 
 生模需要 Coohom 登录及相应服务权限、额度。本仓库公开插件集成层、技能、安装构建工具和测试；两个 MCP 通过独立 npm 包获取。在线编辑器、生模服务、账号及计费系统不在源码范围内。
 
@@ -79,7 +83,7 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-プラグイン対応の Codex、Git、GitHub・nodejs.org・公開 npm・Coohom へのネットワーク接続が必要です。ランチャーは Windows x64 と macOS ARM64 に対応しています。Node/npm は自動で準備されます。インストール後に Codex を再起動し、新しいタスクで `$coohom-freeform` を入力してください。初回の MCP 起動には数分かかる場合があります。両方の MCP はインストール時に公開 npm の latest を解決し、以後の起動で使う実際のバージョンを記録します。
+プラグイン対応の Codex、Git、GitHub・nodejs.org・公開 npm・Coohom へのネットワーク接続が必要です。ランチャーは Windows x64 と macOS ARM64 に対応しています。Node/npm は自動で準備されます。インストール後に Codex を再起動し、新しいタスクで `$coohom-freeform` を入力してください。初回の MCP 起動には数分かかる場合があります。Freeform と Lux3D はインストール時に公開 npm の latest を解決し、以後の起動で使う実際のバージョンを記録します。
 
 生成には Coohom へのログインと必要な権限・クレジットが必要です。公開範囲はプラグイン、スキル、インストール・ビルド用ツール、テストです。MCP は外部 npm パッケージで、オンラインエディターや生成・認証・課金サービスは含まれません。
 
@@ -106,7 +110,7 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-Necesitas Codex con soporte para plugins, Git y acceso a GitHub, nodejs.org, el registro público de npm y Coohom. El lanzador admite Windows x64 y macOS ARM64. Node/npm se preparan automáticamente. Después de la instalación, reinicia Codex, abre una tarea nueva e introduce `$coohom-freeform`. El primer inicio de los MCP puede tardar varios minutos. Durante la instalación, ambos MCP resuelven la versión `latest` del registro público de npm y registran las versiones instaladas para reutilizarlas en los siguientes inicios.
+Necesitas Codex con soporte para plugins, Git y acceso a GitHub, nodejs.org, el registro público de npm y Coohom. El lanzador admite Windows x64 y macOS ARM64. Node/npm se preparan automáticamente. Después de la instalación, reinicia Codex, abre una tarea nueva e introduce `$coohom-freeform`. El primer inicio de los MCP puede tardar varios minutos. Durante la instalación, Freeform y Lux3D resuelven `latest` del registro público de npm y registran las versiones instaladas para reutilizarlas en los siguientes inicios.
 
 La generación requiere iniciar sesión en Coohom y disponer de los permisos y créditos correspondientes. Este repositorio incluye la integración del plugin, las habilidades, las herramientas de instalación y compilación, y las pruebas. Los dos MCP se obtienen como paquetes npm externos. Los editores en línea, los servicios de generación, las cuentas y la facturación quedan fuera del código fuente publicado.
 
@@ -133,7 +137,7 @@ codex plugin marketplace add manycore-research/Coohom-Freeform
 codex plugin add coohom-freeform@coohom
 ```
 
-É necessário ter o Codex com suporte a plugins, Git e acesso ao GitHub, nodejs.org, registro público do npm e Coohom. O inicializador oferece suporte ao Windows x64 e ao macOS ARM64. Node/npm são preparados automaticamente. Após a instalação, reinicie o Codex, abra uma nova tarefa e digite `$coohom-freeform`. A primeira inicialização dos MCPs pode levar alguns minutos. Durante a instalação, ambos os MCPs resolvem a versão `latest` do registro público do npm e registram as versões instaladas para reutilizá-las nas próximas inicializações.
+É necessário ter o Codex com suporte a plugins, Git e acesso ao GitHub, nodejs.org, registro público do npm e Coohom. O inicializador oferece suporte ao Windows x64 e ao macOS ARM64. Node/npm são preparados automaticamente. Após a instalação, reinicie o Codex, abra uma nova tarefa e digite `$coohom-freeform`. A primeira inicialização dos MCPs pode levar alguns minutos. Durante a instalação, Freeform e Lux3D resolvem `latest` do registro público do npm e registram as versões instaladas para reutilizá-las nas próximas inicializações.
 
 A geração exige login no Coohom e as permissões e os créditos correspondentes. Este repositório inclui a integração do plugin, as habilidades, as ferramentas de instalação e compilação e os testes. Os dois MCPs são obtidos como pacotes npm externos. Os editores on-line, os serviços de geração, as contas e o faturamento não fazem parte do código-fonte publicado.
 

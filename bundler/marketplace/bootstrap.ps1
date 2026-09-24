@@ -1,5 +1,5 @@
 param([Parameter(Mandatory = $true)][ValidateSet('freeform', 'lux3d')][string]$Service,
-    [ValidateSet('status', 'install', 'retry', 'versions')][string]$Action, [string]$FreeformVersion, [string]$Lux3dVersion)
+    [ValidateSet('status', 'install', 'retry', 'versions', 'node-info', 'node-retry')][string]$Action, [string]$FreeformVersion, [string]$Lux3dVersion)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Console]::InputEncoding = New-Object System.Text.UTF8Encoding($false)
@@ -7,8 +7,10 @@ $ProgressPreference = 'SilentlyContinue'
 $OutputEncoding = [Console]::OutputEncoding
 $nodeLock = $null
 $stage = $null
+$preparingNode = $false
 try {
     if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -ne [System.Runtime.InteropServices.Architecture]::X64) { throw 'This marketplace supports Windows x64 and macOS ARM64.' }
+    if ($Action -eq 'status') { & (Join-Path $PSScriptRoot 'manage.ps1') status --json; exit $LASTEXITCODE }
     $rows = @(Get-Content -LiteralPath (Join-Path $PSScriptRoot 'node-runtime.tsv'))
     $version = ($rows | Where-Object { $_.StartsWith("version`t") }) -split "`t"
     $policy = ($rows | Where-Object { $_.StartsWith("win32-x64`t") }) -split "`t"
@@ -28,6 +30,7 @@ try {
     $npmCli = Join-Path $nodeRoot 'node_modules\npm\bin\npm-cli.js'
     $marker = Join-Path $nodeRoot '.coohom-sha256'
     $lockPath = Join-Path $nodeParent "win-x64-$nodeVersion.lock"
+    $failurePath = Join-Path $nodeParent "win-x64-$nodeVersion.failure.json"
     $deadline = [DateTime]::UtcNow.AddSeconds(240)
     while (-not $nodeLock) {
         try { $nodeLock = [System.IO.File]::Open($lockPath, 'OpenOrCreate', 'ReadWrite', 'None') }
@@ -36,7 +39,11 @@ try {
             Start-Sleep -Milliseconds 250
         }
     }
+    if ($Action -eq 'retry' -or $Action -eq 'node-retry') { Remove-Item -LiteralPath $failurePath -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $failurePath) { throw 'Previous Node preparation failed or was interrupted. Choose retry or stop; ordinary startup does not download again.' }
     if (-not (Test-Path -LiteralPath $nodeRoot)) {
+        $preparingNode = $true
+        [IO.File]::WriteAllText($failurePath, '{"status":"interrupted","stage":"node"}')
         [Console]::Error.WriteLine("[coohom-freeform] Preparing Node $nodeVersion; first startup requires internet access.")
         $stage = Join-Path $nodeParent ('.download-' + [Guid]::NewGuid().ToString('N'))
         [System.IO.Directory]::CreateDirectory($stage) | Out-Null
@@ -57,6 +64,8 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path $expanded 'node.exe')) -or -not (Test-Path -LiteralPath (Join-Path $expanded 'node_modules\npm\bin\npm-cli.js'))) { throw 'Incomplete Node archive.' }
         [System.IO.File]::WriteAllText((Join-Path $expanded '.coohom-sha256'), $policy[2])
         Move-Item -LiteralPath $expanded -Destination $nodeRoot
+        Remove-Item -LiteralPath $failurePath -Force
+        $preparingNode = $false
     }
     if (-not (Test-Path -LiteralPath $node) -or -not (Test-Path -LiteralPath $npmCli) -or -not (Test-Path -LiteralPath $marker) -or [System.IO.File]::ReadAllText($marker).Trim() -cne $policy[2]) {
         throw 'The Coohom Node cache is incomplete. Close Coohom tasks and follow the cache repair instructions.'
@@ -70,13 +79,19 @@ try {
     }
     Remove-Item Env:NODE_OPTIONS -ErrorAction SilentlyContinue
     Remove-Item Env:NODE_PATH -ErrorAction SilentlyContinue
+    if ($Action -eq 'node-info' -or $Action -eq 'node-retry') {
+        [ordered]@{ nodeExecutable = $node; npmCliPath = $npmCli } | ConvertTo-Json -Compress
+        exit 0
+    }
     $mcpArgs = @($Service, $cacheBase, $npmCli)
+    if ($Action -eq 'retry' -and -not (Test-Path -LiteralPath (Join-Path $cacheBase 'mcp-state\mcp-install-state.json'))) { $Action = 'install' }
     if ($Action) { $mcpArgs += $Action }
     if ($FreeformVersion) { $mcpArgs += $FreeformVersion }
     if ($Lux3dVersion) { $mcpArgs += $Lux3dVersion }
     & $node (Join-Path $PSScriptRoot 'marketplace.mjs') @mcpArgs
     exit $LASTEXITCODE
 } catch {
+    if ($preparingNode) { [IO.File]::WriteAllText($failurePath, (@{ status = 'failed'; stage = 'node'; failedAt = [DateTime]::UtcNow.ToString('o'); reason = 'Node download, checksum verification or extraction failed. Explicit retry required.' } | ConvertTo-Json -Compress)) }
     [Console]::Error.WriteLine('[coohom-freeform] ' + $_.Exception.Message)
     exit 1
 } finally {

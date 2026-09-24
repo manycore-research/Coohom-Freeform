@@ -9,8 +9,11 @@ import { fileURLToPath } from 'node:url';
 import { assertDiscoveredTools, isFreeformLogFile, mcpServerNames, unusedLoopbackPort } from './smoke-contract.mjs';
 
 assert.equal(process.platform, 'win32', 'Run this Windows acceptance script on Windows x64.');
-const [cliArgument, outputArgument, diagnosticOption] = process.argv.slice(2);
-assert.ok(!diagnosticOption || diagnosticOption === '--keep-on-failure', 'Only --keep-on-failure is supported as a diagnostic option.');
+const [cliArgument, outputArgument, ...options] = process.argv.slice(2);
+const seedIndex = options.indexOf('--cached-node');
+const cachedNode = seedIndex < 0 ? undefined : options[seedIndex + 1];
+if (seedIndex >= 0) { assert.ok(cachedNode && !cachedNode.startsWith('--'), '--cached-node requires an existing Node directory.'); options.splice(seedIndex, 2); }
+assert.ok(options.every(option => ['--keep-on-failure', '--management'].includes(option)), 'Supported options: --keep-on-failure, --management.');
 assert.ok(cliArgument && outputArgument, 'Usage: node bundler/marketplace-smoke.mjs <codex.exe> <report.json>');
 const cli = path.resolve(cliArgument);
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -45,6 +48,26 @@ const manifest = JSON.parse(await fs.readFile(path.join(repo, 'plugins/coohom-fr
 const report = { pluginVersion: manifest.version, platform: process.platform, arch: process.arch,
   isolatedCodexHome: true, emptyPath: true, localMarketplace: true, gitHubTransportTested: false,
   userPluginChanged: false, generationOrSceneToolsCalled: false, runs: [] };
+const acceptanceStarted = Date.now();
+
+async function management(args) {
+  const started = Date.now();
+  const script = path.join(repo, 'plugins/coohom-freeform/scripts/manage.ps1');
+  const child = spawn(path.join(process.env.SystemRoot, 'System32/WindowsPowerShell/v1.0/powershell.exe'),
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script, ...args, '--json'],
+    { cwd: root, env: { ...env, COOHOM_CODEX_CLI: cli }, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  let stdout = '';
+  child.stdout.on('data', data => { stdout += data; });
+  child.stderr.on('data', data => process.stderr.write(data));
+  const timer = setTimeout(() => child.kill(), 1_200_000);
+  const code = await new Promise((resolve, reject) => { child.once('close', resolve); child.once('error', reject); });
+  clearTimeout(timer);
+  const result = JSON.parse(stdout);
+  report.management ??= [];
+  report.management.push({ action: args[0], elapsedMs: Date.now() - started, result });
+  assert.equal(code, 0, result.reason);
+  return result;
+}
 
 function invoke(args) {
   const result = spawnSync(cli, args, { cwd: root, env, encoding: 'utf8', windowsHide: true, timeout: 60_000 });
@@ -122,6 +145,18 @@ try {
   assert.equal(installed.version, manifest.version);
   report.installedMcpConfig = JSON.parse(await fs.readFile(path.join(installed.installedPath, '.mcp.json'), 'utf8'));
   await assert.rejects(fs.access(cache), { code: 'ENOENT' });
+  if (cachedNode) {
+    const rows = (await fs.readFile(path.join(repo, 'bundler/marketplace/node-runtime.tsv'), 'utf8')).trim().split('\n').map(line => line.trim().split('\t'));
+    const version = rows.find(row => row[0] === 'version')[1];
+    const expected = rows.find(row => row[0] === 'win32-x64')[2];
+    const source = path.resolve(cachedNode);
+    assert.equal((await fs.readFile(path.join(source, '.coohom-sha256'), 'utf8')).trim(), expected);
+    await fs.access(path.join(source, 'node_modules/npm/bin/npm-cli.js'));
+    assert.equal(spawnSync(path.join(source, 'node.exe'), ['--version'], { encoding: 'utf8', windowsHide: true }).stdout.trim(), `v${version}`);
+    const destination = path.join(cache, 'node', `node-v${version}-win-x64`);
+    await fs.mkdir(path.dirname(destination), { recursive: true }); await fs.cp(source, destination, { recursive: true });
+    report.nodePreparation = { mode: 'copied-existing-runtime-with-matching-checksum-marker', version, coldDownloadTested: false };
+  } else report.nodePreparation = { mode: 'official-download', coldDownloadTested: true };
   await probe('cold');
   const versions = await fs.readdir(path.join(cache, 'plugins'));
   async function readPairs() {
@@ -142,6 +177,21 @@ try {
   await probe('warm');
   assert.equal(JSON.stringify(await readPairs()), before);
   report.warmInstallationRecordsUnchanged = true;
+  if (options.includes('--management')) {
+    assert.equal((await management(['status'])).validation, 'installed');
+    assert.equal((await management(['doctor'])).status, 'passed');
+    assert.equal((await management(['status'])).validation, 'initialized');
+    const upgraded = await management(['upgrade', '--source', repo]);
+    assert.equal(upgraded.status, 'succeeded'); assert.equal(upgraded.cleanup.complete, true);
+    report.upgradedVersions = { plugin: upgraded.current.pluginVersion, freeform: upgraded.current.pair.freeform.version, lux3d: upgraded.current.pair.lux3d.version };
+    const upgradedPair = JSON.stringify(upgraded.current.pair);
+    await probe('upgraded');
+    assert.equal(JSON.stringify((await management(['status'])).current.pair), upgradedPair);
+    const cleaned = await management(['cleanup']); assert.equal(cleaned.candidates.length, 0);
+    assert.equal((await management(['uninstall'])).status, 'uninstalled');
+    const preview = await management(['cleanup', '--purge-cache']); assert.ok(preview.candidates.length);
+    await management(['cleanup', '--purge-cache', '--apply']);
+  }
   report.passed = true;
 } catch (error) {
   report.passed = false;
@@ -161,7 +211,8 @@ try {
     report.freeformStartupLogs.push({ filename, content });
   }
   await fs.mkdir(path.dirname(path.resolve(outputArgument)), { recursive: true });
-  if (!report.passed && diagnosticOption === '--keep-on-failure') report.retainedTemporaryRoot = root;
+  report.elapsedMs = Date.now() - acceptanceStarted;
+  if (!report.passed && options.includes('--keep-on-failure')) report.retainedTemporaryRoot = root;
   await fs.writeFile(path.resolve(outputArgument), JSON.stringify(report, null, 2) + '\n');
   assert.equal(path.dirname(root), temporaryParent);
   if (!report.retainedTemporaryRoot) await fs.rm(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 500 });

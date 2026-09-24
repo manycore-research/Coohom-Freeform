@@ -48,7 +48,7 @@ def export(repo: Path, output: Path) -> int:
             relative = path.relative_to(repo).as_posix()
             info = zipfile.ZipInfo.from_file(path, relative)
             info.create_system = 3
-            mode = 0o100755 if relative in {'bundler/marketplace/bootstrap', 'plugins/coohom-freeform/scripts/bootstrap'} else 0o100644
+            mode = 0o100755 if relative in {'bundler/marketplace/bootstrap', 'plugins/coohom-freeform/scripts/bootstrap', 'bundler/marketplace/manage', 'plugins/coohom-freeform/scripts/manage'} else 0o100644
             info.external_attr = mode << 16
             info.compress_type = zipfile.ZIP_DEFLATED
             archive.writestr(info, path.read_bytes())

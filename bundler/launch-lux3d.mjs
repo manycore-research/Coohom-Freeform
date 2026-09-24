@@ -11,6 +11,7 @@ async function main() {
   for (const key of Object.keys(env)) {
     if (key.toLowerCase() === 'lux3d_mcp_executor_url') delete env[key];
   }
+  env.LUX3D_MCP_EXECUTOR_URL = 'https://www.coohom.com/pub/tool/bim/ai-home/mcp-executor';
   await launchPublicCli({ installationDirectory, cliPath: binPath, env });
 }
 main().catch(() => {
