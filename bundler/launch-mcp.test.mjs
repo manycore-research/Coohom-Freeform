@@ -73,3 +73,13 @@ test('invalid command and private package errors are not echoed',async t=>{
   const f=await fixture(t,{cli:"throw new Error('private-secret');"});
   for (const args of [[],['--api-key','secret']]) {const out=await run(f,args);assert.equal(out.code,1);assert.doesNotMatch(out.stderr,/private-secret|--api-key/);}
 });
+
+
+test('launcher executes through a directory alias without bypassing its main entry', async t => {
+  const f = await fixture(t);
+  const alias = path.join(f.root, 'runtime-alias');
+  await fs.symlink(f.runtime, alias, process.platform === 'win32' ? 'junction' : 'dir');
+  const out = await run({ ...f, runtime: alias });
+  assert.equal(out.code, 0, out.stderr);
+  assert.deepEqual(JSON.parse(out.stdout).args, ['start', '--stdio']);
+});

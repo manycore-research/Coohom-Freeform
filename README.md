@@ -10,7 +10,7 @@ Create and continuously edit Coohom 3D scenes in Codex using images and natural 
 
 With a lighting-capable Freeform MCP, completed interior edits enter Render for whole-scene lighting checks, preserving existing lights and manual adjustments. Render may internally save the model; additional saving and publishing remain user choices. See [interior lighting](coohom-freeform/README.md#interior-lighting).
 
-**v0.1.0 is now officially released.** See [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) for downloads and [release details](docs/releasing.md) for distribution information.
+**v0.1.1 is now officially released.** See [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) for downloads and [release details](docs/releasing.md) for distribution information.
 
 ### Install
 
@@ -39,7 +39,7 @@ Marketplace installation is recommended. For a local package, download the most 
 
 安装的 Freeform MCP 支持灯光工具时，每轮室内编辑完成后会进入 Render 检查全场灯光，并保留已有灯光和手动调整。进入 Render 可能触发内部保存，额外保存与发布仍由用户决定。详见[室内灯光说明](coohom-freeform/README.md#interior-lighting)。
 
-**v0.1.0 已正式发布。** 安装包见 [Releases](https://github.com/manycore-research/Coohom-Freeform/releases)，分发信息见[发布说明](docs/releasing.md)。
+**v0.1.1 已正式发布。** 安装包见 [Releases](https://github.com/manycore-research/Coohom-Freeform/releases)，分发信息见[发布说明](docs/releasing.md)。
 
 ### 安装
 
@@ -66,7 +66,7 @@ codex plugin add coohom-freeform@coohom
 
 Codex で画像や自然言語を使い、Coohom の 3D シーンを作成・編集できます。Lux3D による画像からの 3D モデル生成、空間の作成、家具の配置、マテリアルの調整を組み合わせます。
 
-**v0.1.0 を正式リリースしました。** ダウンロードは [Releases](https://github.com/manycore-research/Coohom-Freeform/releases)、配布の詳細は[リリース情報](docs/releasing.md)を参照してください。
+**v0.1.1 を正式リリースしました。** ダウンロードは [Releases](https://github.com/manycore-research/Coohom-Freeform/releases)、配布の詳細は[リリース情報](docs/releasing.md)を参照してください。
 
 ### インストール
 
@@ -93,7 +93,7 @@ marketplace 経由のインストールを推奨します。ローカルパッ�
 
 Crea y edita escenas 3D de Coohom en Codex a partir de imágenes y lenguaje natural. Combina la generación de modelos 3D a partir de imágenes con Lux3D, el modelado de espacios, la colocación de muebles y la edición de materiales.
 
-**v0.1.0 ya está disponible como versión oficial.** Consulta [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) para descargar los paquetes y los [detalles de la versión](docs/releasing.md) para obtener información sobre la distribución.
+**v0.1.1 ya está disponible como versión oficial.** Consulta [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) para descargar los paquetes y los [detalles de la versión](docs/releasing.md) para obtener información sobre la distribución.
 
 ### Instalación
 
@@ -120,7 +120,7 @@ Se recomienda instalar desde el marketplace. Para una instalación local, descar
 
 Crie e edite cenas 3D do Coohom no Codex usando imagens e linguagem natural. Combine a geração de modelos 3D a partir de imagens com o Lux3D, a modelagem de espaços, o posicionamento de móveis e a edição de materiais.
 
-**A versão v0.1.0 foi lançada oficialmente.** Acesse [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) para baixar os pacotes e consulte os [detalhes da versão](docs/releasing.md) para informações sobre distribuição.
+**A versão v0.1.1 foi lançada oficialmente.** Acesse [Releases](https://github.com/manycore-research/Coohom-Freeform/releases) para baixar os pacotes e consulte os [detalhes da versão](docs/releasing.md) para informações sobre distribuição.
 
 ### Instalação
 

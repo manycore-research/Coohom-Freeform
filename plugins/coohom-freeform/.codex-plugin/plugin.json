@@ -1,6 +1,6 @@
 {
   "name": "coohom-freeform",
-  "version": "0.1.22+codex.20260924093339",
+  "version": "0.1.1+codex.20260924100348",
   "description": "Create, view and refine 3D scenes from images and natural language with Lux3D image-to-3D generation and Coohom Freeform.",
   "author": {
     "name": "Coohom Freeform"

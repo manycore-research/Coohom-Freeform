@@ -2,7 +2,7 @@
 
 ## Version and distribution
 
-**v0.1.0 is an official public release.** Installation packages are available from the [v0.1.0 release](https://github.com/manycore-research/Coohom-Freeform/releases/tag/v0.1.0).
+**v0.1.1 is an official public release.** Installation packages are available from the [v0.1.1 release](https://github.com/manycore-research/Coohom-Freeform/releases/tag/v0.1.1).
 
 This repository contains the plugin, GitHub marketplace, installer/build sources,
 tests and documentation under the MIT license. Read the version from the
@@ -73,7 +73,7 @@ reviewed component; never suppress all GPL matches globally.
 Normal CI can run `python -B scripts/third_party.py --notices-only` and export with
 `--source-only`. These validate a development snapshot, not installed dependency
 licenses, and are not a substitute for the release commands above. No license gate
-runs during user installation, updates or startup. Because Lux3D still uses
+runs during user installation, updates or startup. Because both MCPs use
 latest, a release report covers only the installation that was actually checked.
 
 ### Release maintenance checklist
