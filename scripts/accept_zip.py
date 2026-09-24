@@ -1,12 +1,26 @@
 """Run an actual release ZIP installer in an isolated Codex profile."""
 import argparse
+from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import tempfile
 import time
 import zipfile
+
+
+@contextmanager
+def isolated_directory(parent):
+    root = Path(tempfile.mkdtemp(prefix='cf-', dir=parent)).resolve()
+    assert root.is_relative_to(parent) and root.name.startswith('cf-')
+    try:
+        yield root
+    finally:
+        # Dependency trees can exceed MAX_PATH even with a short test root.
+        cleanup_path = '\\\\?\\' + str(root) if os.name == 'nt' else str(root)
+        shutil.rmtree(cleanup_path)
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('archive', type=Path)
@@ -22,7 +36,7 @@ if cli is None:
 cli = cli.resolve()
 started = time.monotonic()
 temporary_parent = Path(os.environ.get('RUNNER_TEMP', tempfile.gettempdir())).resolve()
-with tempfile.TemporaryDirectory(prefix='cf-', dir=temporary_parent) as temporary:
+with isolated_directory(temporary_parent) as temporary:
     root = Path(temporary).resolve()
     assert root.is_relative_to(temporary_parent)
     source = root / 'extracted'

@@ -10,7 +10,8 @@ on:
     paths:
       - .github/workflows/zip-acceptance.yml
 permissions:
-  contents: read
+  # GitHub only exposes draft releases to callers with push access.
+  contents: write
 jobs:
   install:
     timeout-minutes: 20
